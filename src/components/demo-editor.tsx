@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   DndContext,
   closestCenter,
@@ -34,6 +34,12 @@ import {
 import { CVPreview } from "@/components/cv-preview";
 import { DesignSidebar } from "@/components/design-sidebar";
 import { getTemplate, getPalette } from "@/lib/design-constants";
+import { exportToPdf } from "@/lib/pdf-export";
+import {
+  getProfilePicture,
+  setProfilePicture,
+  removeProfilePicture,
+} from "@/lib/profile-picture";
 import {
   getDemoSections,
   getDemoDesign,
@@ -55,6 +61,10 @@ export function DemoEditor() {
   const [designDirty, setDesignDirty] = useState(false);
   const [designSaved, setDesignSaved] = useState(false);
   const [pageBreaks, setPageBreaks] = useState<number[]>([]);
+  const [pdfExporting, setPdfExporting] = useState(false);
+  const [profilePicture, setProfilePictureState] = useState<string | null>(null);
+  const [includePhotoInPdf, setIncludePhotoInPdf] = useState(true);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -73,6 +83,45 @@ export function DemoEditor() {
     setDesignDirty(false);
     setDesignSaved(false);
   }, []);
+
+  // Load profile picture from localStorage on mount
+  useEffect(() => {
+    const stored = getProfilePicture();
+    if (stored) setProfilePictureState(stored);
+  }, []);
+
+  // ─── Photo handlers ────────────────────────────────────────────────────────
+
+  const handlePhotoUpload = async (file: File) => {
+    try {
+      const stored = await setProfilePicture(file);
+      setProfilePictureState(stored);
+    } catch (err) {
+      console.error("Failed to upload photo:", err);
+    }
+  };
+
+  const handlePhotoRemove = () => {
+    removeProfilePicture();
+    setProfilePictureState(null);
+  };
+
+  // ─── PDF export handler ──────────────────────────────────────────────────────
+
+  const handleExportPdf = async () => {
+    if (!previewRef.current) return;
+    setPdfExporting(true);
+    try {
+      await exportToPdf(previewRef.current, {
+        profileName: profileName || "CV",
+        includePhoto: includePhotoInPdf,
+      });
+    } catch (err) {
+      console.error("Failed to export PDF:", err);
+    } finally {
+      setPdfExporting(false);
+    }
+  };
 
   // ─── Section handlers (local only) ──────────────────────────────────────
 
@@ -392,6 +441,30 @@ export function DemoEditor() {
           >
             Reset Demo
           </button>
+
+          {/* PDF export */}
+          <button
+            onClick={handleExportPdf}
+            disabled={pdfExporting || !sections.length}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
+          >
+            {pdfExporting ? (
+              <>
+                <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                </svg>
+                Exporting...
+              </>
+            ) : (
+              <>
+                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.293a1 1 0 011.414 0L9 11.586V3a1 1 0 112 0v8.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" />
+                </svg>
+                Export PDF
+              </>
+            )}
+          </button>
         </div>
       </div>
 
@@ -444,6 +517,59 @@ export function DemoEditor() {
                       placeholder="Professional title"
                       className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"
                     />
+                  </div>
+
+                  {/* Profile picture */}
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <div className="flex items-start gap-4">
+                      {profilePicture ? (
+                        <img
+                          src={profilePicture}
+                          alt="Profile"
+                          className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
+                          No photo
+                        </div>
+                      )}
+                      <div className="flex-1 space-y-2">
+                        <div className="flex gap-2">
+                          <label className="cursor-pointer px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
+                            {profilePicture ? "Change photo" : "Upload photo"}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handlePhotoUpload(file);
+                              }}
+                            />
+                          </label>
+                          {profilePicture && (
+                            <button
+                              onClick={handlePhotoRemove}
+                              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-xs text-amber-600 bg-amber-50 rounded px-2 py-1">
+                          Photo stays in your browser only — not uploaded to any server.
+                        </p>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={includePhotoInPdf}
+                            onChange={(e) => setIncludePhotoInPdf(e.target.checked)}
+                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span className="text-xs text-gray-600">Include photo in exported PDF</span>
+                        </label>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -503,6 +629,7 @@ export function DemoEditor() {
           {/* Preview pane */}
           {showPreview && (
             <div
+              ref={previewRef}
               className={`overflow-y-auto bg-gray-200 max-h-[calc(100vh-56px)] ${
                 viewMode === "split" ? "w-1/2" : "flex-1"
               }`}
@@ -515,6 +642,7 @@ export function DemoEditor() {
                   pageBreaks={pageBreaks}
                   profileName={profileName}
                   profileTitle={profileTitle}
+                  profilePicture={includePhotoInPdf ? profilePicture : null}
                   showPageBreaks
                 />
               </div>
