@@ -29,11 +29,10 @@ import {
   SortableSectionCard,
   SECTION_TYPES,
   SORT_MODES,
-  DEFAULT_LANGUAGES,
 } from "@/components/editor-client";
 import { LanguageManager } from "@/components/language-manager";
 import type { CustomLanguage } from "@/lib/languages";
-import { ensureLanguages, saveLanguages } from "@/lib/languages";
+import { DEMO_LANGUAGES, saveLanguages, loadLanguages } from "@/lib/languages";
 import { CVPreview } from "@/components/cv-preview";
 import { DesignSidebar } from "@/components/design-sidebar";
 import { getTemplate, getPalette } from "@/lib/design-constants";
@@ -52,13 +51,60 @@ import {
 
 type ViewMode = "edit" | "preview" | "split";
 
+const DEMO_SECTIONS_KEY = "cvcreator:demo-sections";
+const DEMO_PROFILE_KEY = "cvcreator:demo-profile";
+
+// ─── localStorage persistence for demo mode ──────────────────────────────────
+
+function loadDemoSections(): SectionWithEntries[] {
+  if (typeof window === "undefined") return getDemoSections();
+  try {
+    const raw = localStorage.getItem(DEMO_SECTIONS_KEY);
+    if (!raw) return getDemoSections();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return getDemoSections();
+    return parsed;
+  } catch {
+    return getDemoSections();
+  }
+}
+
+function saveDemoSections(sections: SectionWithEntries[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(DEMO_SECTIONS_KEY, JSON.stringify(sections));
+  } catch {
+    // storage full or blocked — non-fatal
+  }
+}
+
+function loadDemoProfile(): { name: string; title: string } {
+  if (typeof window === "undefined") return getDemoProfile();
+  try {
+    const raw = localStorage.getItem(DEMO_PROFILE_KEY);
+    if (!raw) return getDemoProfile();
+    return JSON.parse(raw);
+  } catch {
+    return getDemoProfile();
+  }
+}
+
+function saveDemoProfile(name: string, title: string) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(DEMO_PROFILE_KEY, JSON.stringify({ name, title }));
+  } catch {
+    // non-fatal
+  }
+}
+
 export function DemoEditor() {
-  const [sections, setSections] = useState<SectionWithEntries[]>(() => getDemoSections());
+  const [sections, setSections] = useState<SectionWithEntries[]>(() => loadDemoSections());
   const [design, setDesign] = useState<CVDesign | null>(null);
-  const [profileName, setProfileName] = useState(getDemoProfile().name);
-  const [profileTitle, setProfileTitle] = useState(getDemoProfile().title);
+  const [profileName, setProfileName] = useState(() => loadDemoProfile().name);
+  const [profileTitle, setProfileTitle] = useState(() => loadDemoProfile().title);
   const [activeLang, setActiveLang] = useState("hu");
-  const [languages, setLanguages] = useState<CustomLanguage[]>(DEFAULT_LANGUAGES);
+  const [languages, setLanguages] = useState<CustomLanguage[]>(DEMO_LANGUAGES);
   const [viewMode, setViewMode] = useState<ViewMode>("split");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [designForm, setDesignForm] = useState<Partial<CVDesign>>(() => getDemoDesign());
@@ -83,10 +129,16 @@ export function DemoEditor() {
     setProfileName(getDemoProfile().name);
     setProfileTitle(getDemoProfile().title);
     setActiveLang("hu");
-    setLanguages(DEFAULT_LANGUAGES);
+    setLanguages(DEMO_LANGUAGES);
     setPageBreaks([]);
     setDesignDirty(false);
     setDesignSaved(false);
+    // Clear localStorage so reload also gets fresh demo data
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(DEMO_SECTIONS_KEY);
+      localStorage.removeItem(DEMO_PROFILE_KEY);
+      localStorage.removeItem("cvcreator:custom-languages");
+    }
   }, []);
 
   // Load profile picture from localStorage on mount
@@ -95,12 +147,28 @@ export function DemoEditor() {
     if (stored) setProfilePictureState(stored);
   }, []);
 
+  // Persist sections (including translations) to localStorage on change
+  useEffect(() => {
+    saveDemoSections(sections);
+  }, [sections]);
+
+  // Persist profile name/title to localStorage on change
+  useEffect(() => {
+    saveDemoProfile(profileName, profileTitle);
+  }, [profileName, profileTitle]);
+
   // Load custom languages from localStorage on mount
   useEffect(() => {
-    const stored = ensureLanguages();
-    setLanguages(stored);
-    if (stored.length > 0 && !stored.find((l) => l.code === activeLang)) {
-      setActiveLang(stored[0].code);
+    // For demo mode: if no languages stored, seed with demo languages (HU, EN, DE, FR)
+    const stored = loadLanguages();
+    if (stored.length === 0) {
+      setLanguages(DEMO_LANGUAGES);
+      saveLanguages(DEMO_LANGUAGES);
+    } else {
+      setLanguages(stored);
+      if (!stored.find((l) => l.code === activeLang)) {
+        setActiveLang(stored[0].code);
+      }
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

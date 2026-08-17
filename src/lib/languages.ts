@@ -12,10 +12,18 @@ export interface CustomLanguage {
 
 const STORAGE_KEY = "cvcreator:custom-languages";
 
-/** Default seed for demo mode — Hungarian first, then English. */
+/** Default seed — Hungarian first, then English. */
 export const DEFAULT_LANGUAGES: CustomLanguage[] = [
   { code: "hu", label: "HU", full: "Hungarian" },
   { code: "en", label: "EN", full: "English" },
+];
+
+/** Demo seed — includes all languages present in the demo sample data. */
+export const DEMO_LANGUAGES: CustomLanguage[] = [
+  { code: "hu", label: "HU", full: "Hungarian" },
+  { code: "en", label: "EN", full: "English" },
+  { code: "de", label: "DE", full: "German" },
+  { code: "fr", label: "FR", full: "French" },
 ];
 
 // ─── Storage helpers ────────────────────────────────────────────────────────
