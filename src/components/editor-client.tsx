@@ -580,7 +580,7 @@ export function EditorClient() {
                 onClick={() => setViewMode(mode)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                   viewMode === mode
-                    ? "bg-white text-indigo-600 shadow-sm"
+                    ? "bg-white text-teal-600 shadow-sm"
                     : "text-gray-500 hover:text-gray-700"
                 }`}
               >
@@ -598,7 +598,7 @@ export function EditorClient() {
                 title={lang.full}
                 className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all ${
                   activeLang === lang.code
-                    ? "bg-white text-indigo-600 shadow-sm"
+                    ? "bg-white text-teal-600 shadow-sm"
                     : "text-gray-500 hover:text-gray-700"
                 }`}
               >
@@ -612,7 +612,7 @@ export function EditorClient() {
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
               sidebarOpen
-                ? "bg-indigo-50 text-indigo-600"
+                ? "bg-teal-50 text-teal-600"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
           >
@@ -746,7 +746,7 @@ export function EditorClient() {
                                 }}
                                 className="hidden"
                               />
-                              <span className="cursor-pointer text-xs font-medium text-indigo-600 hover:text-indigo-700 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition-colors inline-block">
+                              <span className="cursor-pointer text-xs font-medium text-teal-600 hover:text-teal-700 px-3 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 transition-colors inline-block">
                                 {profilePicture ? "Change photo" : "Upload photo"}
                               </span>
                             </label>
@@ -773,7 +773,7 @@ export function EditorClient() {
                             type="checkbox"
                             checked={includePhotoInPdf}
                             onChange={(e) => setIncludePhotoInPdf(e.target.checked)}
-                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
                           />
                           <span className="text-xs text-gray-600">Include photo in exported PDF</span>
                         </label>
@@ -821,7 +821,7 @@ export function EditorClient() {
                     {/* Add section + page break */}
                     <button
                       onClick={handleAddSection}
-                      className="w-full rounded-xl border-2 border-dashed border-gray-300 py-3 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+                      className="w-full rounded-xl border-2 border-dashed border-gray-300 py-3 text-gray-500 hover:border-teal-400 hover:text-teal-600 transition-colors"
                     >
                       + Add Section
                     </button>
@@ -911,7 +911,7 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
       <div
         className={`rounded-xl border bg-white overflow-hidden transition-shadow ${
           section.is_enabled ? "border-gray-200" : "border-gray-200 opacity-60"
-        } ${isDragging ? "shadow-lg ring-2 ring-indigo-300" : ""}`}
+        } ${isDragging ? "shadow-lg ring-2 ring-teal-300" : ""}`}
       >
         {/* Section header */}
         <div className="flex items-center gap-2 p-3">
@@ -938,7 +938,7 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
               type="checkbox"
               checked={section.is_enabled}
               onChange={(e) => props.onToggle(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
             />
           </label>
 
@@ -948,7 +948,7 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
             value={section.title}
             onChange={(e) => props.onUpdate({ title: e.target.value })}
             onBlur={() => props.onUpdate({ title: section.title })}
-            className="flex-1 font-medium text-gray-900 bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none px-1 py-1"
+            className="flex-1 font-medium text-gray-900 bg-transparent border-b border-transparent focus:border-teal-500 focus:outline-none px-1 py-1"
           />
 
           {/* Section type */}
@@ -1002,7 +1002,7 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
                     onClick={() => props.onLayoutChange("columns", c)}
                     className={`px-2 py-0.5 text-xs rounded transition-colors ${
                       currentColumns === c
-                        ? "bg-white text-indigo-600 shadow-sm"
+                        ? "bg-white text-teal-600 shadow-sm"
                         : "text-gray-500 hover:text-gray-700"
                     }`}
                   >
@@ -1064,7 +1064,7 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
 
             <button
               onClick={props.onAddEntry}
-              className="w-full text-xs text-gray-400 hover:text-indigo-600 py-2 border border-dashed border-gray-200 rounded-lg hover:border-indigo-300 transition-colors"
+              className="w-full text-xs text-gray-400 hover:text-teal-600 py-2 border border-dashed border-gray-200 rounded-lg hover:border-teal-300 transition-colors"
             >
               + Add Entry
             </button>
@@ -1166,7 +1166,7 @@ export function SortableEntryRow({
       style={style}
       className={`flex items-start gap-2 p-2.5 rounded-lg bg-gray-50 group ${
         !entry.is_enabled ? "opacity-50" : ""
-      } ${isDragging ? "ring-2 ring-indigo-300 shadow-md" : ""}`}
+      } ${isDragging ? "ring-2 ring-teal-300 shadow-md" : ""}`}
     >
       {/* Drag handle */}
       <button
@@ -1190,7 +1190,7 @@ export function SortableEntryRow({
         type="checkbox"
         checked={entry.is_enabled}
         onChange={(e) => onToggle(e.target.checked)}
-        className="h-4 w-4 mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+        className="h-4 w-4 mt-1 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
       />
 
       <div className="flex-1 space-y-1">
@@ -1236,7 +1236,7 @@ export function SortableEntryRow({
           </span>
           <button
             onClick={() => setShowLangEditor(!showLangEditor)}
-            className="text-xs text-indigo-500 hover:underline"
+            className="text-xs text-teal-500 hover:underline"
           >
             {showLangEditor ? "Hide" : "Manage translations"}
           </button>

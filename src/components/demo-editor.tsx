@@ -395,7 +395,7 @@ export function DemoEditor() {
                 onClick={() => setViewMode(mode)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                   viewMode === mode
-                    ? "bg-white text-indigo-600 shadow-sm"
+                    ? "bg-white text-teal-600 shadow-sm"
                     : "text-gray-500 hover:text-gray-700"
                 }`}
               >
@@ -413,7 +413,7 @@ export function DemoEditor() {
                 title={lang.full}
                 className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all ${
                   activeLang === lang.code
-                    ? "bg-white text-indigo-600 shadow-sm"
+                    ? "bg-white text-teal-600 shadow-sm"
                     : "text-gray-500 hover:text-gray-700"
                 }`}
               >
@@ -427,7 +427,7 @@ export function DemoEditor() {
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
               sidebarOpen
-                ? "bg-indigo-50 text-indigo-600"
+                ? "bg-teal-50 text-teal-600"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
           >
@@ -564,7 +564,7 @@ export function DemoEditor() {
                             type="checkbox"
                             checked={includePhotoInPdf}
                             onChange={(e) => setIncludePhotoInPdf(e.target.checked)}
-                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
                           />
                           <span className="text-xs text-gray-600">Include photo in exported PDF</span>
                         </label>
@@ -618,7 +618,7 @@ export function DemoEditor() {
                 {/* Add section */}
                 <button
                   onClick={handleAddSection}
-                  className="w-full rounded-xl border-2 border-dashed border-gray-300 py-3 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+                  className="w-full rounded-xl border-2 border-dashed border-gray-300 py-3 text-gray-500 hover:border-teal-400 hover:text-teal-600 transition-colors"
                 >
                   + Add Section
                 </button>

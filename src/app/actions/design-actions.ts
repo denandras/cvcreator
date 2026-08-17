@@ -100,7 +100,7 @@ export async function saveDesign(
         template: input.template ?? "clean",
         font_family: input.font_family ?? "inter",
         primary_color: input.primary_color ?? "#1a1a1a",
-        accent_color: input.accent_color ?? "#4f46e5",
+        accent_color: input.accent_color ?? "#14b8a6",
         spacing: input.spacing ?? "normal",
         border_radius: input.border_radius ?? 8,
         page_margin: input.page_margin ?? 48,

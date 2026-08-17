@@ -78,7 +78,7 @@ export function DesignSidebar({
             onClick={() => setActiveTab(tab.id)}
             className={`flex-1 px-2 py-2.5 text-xs font-medium transition-colors ${
               activeTab === tab.id
-                ? "text-indigo-600 border-b-2 border-indigo-600"
+                ? "text-teal-600 border-b-2 border-teal-600"
                 : "text-gray-500 hover:text-gray-700 border-b-2 border-transparent"
             }`}
           >
@@ -101,14 +101,14 @@ export function DesignSidebar({
                   onClick={() => onApplyTemplate(tpl.id)}
                   className={`w-full text-left rounded-lg border-2 p-3 transition-all ${
                     isActive
-                      ? "border-indigo-500 bg-indigo-50"
+                      ? "border-teal-500 bg-teal-50"
                       : "border-gray-200 hover:border-gray-300"
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-semibold text-gray-900">{tpl.label}</span>
                     {isActive && (
-                      <span className="text-xs text-indigo-600 font-medium">Active</span>
+                      <span className="text-xs text-teal-600 font-medium">Active</span>
                     )}
                   </div>
                   <p className="text-xs text-gray-500 mb-2">{tpl.description}</p>
@@ -145,14 +145,14 @@ export function DesignSidebar({
                       onClick={() => onChange("font_family", font.value)}
                       className={`w-full text-left rounded-lg border-2 px-3 py-2.5 transition-all ${
                         isActive
-                          ? "border-indigo-500 bg-indigo-50"
+                          ? "border-teal-500 bg-teal-50"
                           : "border-gray-200 hover:border-gray-300"
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-900">{font.label}</span>
                         {isActive && (
-                          <span className="text-xs text-indigo-600 font-medium">Active</span>
+                          <span className="text-xs text-teal-600 font-medium">Active</span>
                         )}
                       </div>
                       <div
@@ -178,7 +178,7 @@ export function DesignSidebar({
                     onClick={() => onChange("spacing", s)}
                     className={`rounded-lg border-2 px-2 py-2 text-xs font-medium capitalize transition-all ${
                       (design.spacing ?? "normal") === s
-                        ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                        ? "border-teal-500 bg-teal-50 text-teal-700"
                         : "border-gray-200 text-gray-600 hover:border-gray-300"
                     }`}
                   >
@@ -206,14 +206,14 @@ export function DesignSidebar({
                       onClick={() => onApplyPalette(pal.id)}
                       className={`w-full text-left rounded-lg border-2 p-3 transition-all ${
                         isActive
-                          ? "border-indigo-500 bg-indigo-50"
+                          ? "border-teal-500 bg-teal-50"
                           : "border-gray-200 hover:border-gray-300"
                       }`}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium text-gray-900">{pal.label}</span>
                         {isActive && (
-                          <span className="text-xs text-indigo-600 font-medium">Active</span>
+                          <span className="text-xs text-teal-600 font-medium">Active</span>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5">
@@ -249,7 +249,7 @@ export function DesignSidebar({
                 <div className="relative">
                   <input
                     type="color"
-                    value={design.accent_color ?? "#4f46e5"}
+                    value={design.accent_color ?? "#14b8a6"}
                     onChange={(e) => onChange("accent_color", e.target.value)}
                     className="w-full h-9 rounded-lg border border-gray-300 cursor-pointer"
                   />
@@ -265,7 +265,7 @@ export function DesignSidebar({
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
                 Border Radius
-                <span className="ml-1 text-indigo-600 normal-case tracking-normal">
+                <span className="ml-1 text-teal-600 normal-case tracking-normal">
                   {design.border_radius ?? 8}px
                 </span>
               </label>
@@ -275,7 +275,7 @@ export function DesignSidebar({
                 max={24}
                 value={design.border_radius ?? 8}
                 onChange={(e) => onChange("border_radius", parseInt(e.target.value))}
-                className="w-full accent-indigo-600"
+                className="w-full accent-teal-600"
               />
               <div className="flex justify-between text-xs text-gray-400 mt-1">
                 <span>Sharp</span>
@@ -286,7 +286,7 @@ export function DesignSidebar({
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
                 Page Margin
-                <span className="ml-1 text-indigo-600 normal-case tracking-normal">
+                <span className="ml-1 text-teal-600 normal-case tracking-normal">
                   {design.page_margin ?? 48}px
                 </span>
               </label>
@@ -297,7 +297,7 @@ export function DesignSidebar({
                 step={4}
                 value={design.page_margin ?? 48}
                 onChange={(e) => onChange("page_margin", parseInt(e.target.value))}
-                className="w-full accent-indigo-600"
+                className="w-full accent-teal-600"
               />
               <div className="flex justify-between text-xs text-gray-400 mt-1">
                 <span>Narrow</span>
@@ -314,7 +314,7 @@ export function DesignSidebar({
                   onClick={() => onChange("page_mode", "auto")}
                   className={`w-full rounded-lg border-2 px-3 py-2 text-xs font-medium transition-all ${
                     (design.custom_config?.pageMode as string) !== "manual"
-                      ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                      ? "border-teal-500 bg-teal-50 text-teal-700"
                       : "border-gray-200 text-gray-600 hover:border-gray-300"
                   }`}
                 >
@@ -324,7 +324,7 @@ export function DesignSidebar({
                   onClick={() => onChange("page_mode", "manual")}
                   className={`w-full rounded-lg border-2 px-3 py-2 text-xs font-medium transition-all ${
                     (design.custom_config?.pageMode as string) === "manual"
-                      ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                      ? "border-teal-500 bg-teal-50 text-teal-700"
                       : "border-gray-200 text-gray-600 hover:border-gray-300"
                   }`}
                 >
@@ -341,7 +341,7 @@ export function DesignSidebar({
         <button
           onClick={onSave}
           disabled={!dirty || saving}
-          className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full rounded-lg bg-teal-600 px-4 py-2.5 text-white text-sm font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {saving ? "Saving..." : "Save Design"}
         </button>

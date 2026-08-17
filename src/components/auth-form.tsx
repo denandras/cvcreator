@@ -43,7 +43,7 @@ export function AuthForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
             />
           </div>
           <div>
@@ -56,7 +56,7 @@ export function AuthForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
             />
           </div>
 
@@ -67,7 +67,7 @@ export function AuthForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            className="w-full rounded-lg bg-teal-600 px-4 py-2 text-white font-medium hover:bg-teal-700 disabled:opacity-50 transition-colors"
           >
             {loading ? "Loading..." : mode === "signin" ? "Sign In" : "Sign Up"}
           </button>
@@ -79,7 +79,7 @@ export function AuthForm() {
               setMode(mode === "signin" ? "signup" : "signin");
               setError(null);
             }}
-            className="text-indigo-600 hover:underline"
+            className="text-teal-600 hover:underline"
           >
             {mode === "signin"
               ? "Don't have an account? Sign up"

@@ -14,7 +14,7 @@ export default function Home() {
         <div className="flex gap-4 justify-center pt-4">
           <Link
             href="/editor"
-            className="rounded-lg bg-indigo-600 px-6 py-3 text-white font-medium hover:bg-indigo-700 transition-colors"
+            className="rounded-lg bg-teal-600 px-6 py-3 text-white font-medium hover:bg-teal-700 transition-colors"
           >
             Get Started
           </Link>
