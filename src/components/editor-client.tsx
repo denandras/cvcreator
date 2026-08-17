@@ -710,7 +710,7 @@ export function EditorClient() {
               className="lg:hidden fixed inset-0 bg-black/30 z-40"
               onClick={() => setSidebarOpen(false)}
             />
-            <div className="w-72 flex-shrink-0 overflow-y-auto h-full absolute lg:relative z-50 lg:z-auto inset-y-0 left-0 lg:inset-auto">
+            <div className="w-72 flex-shrink-0 overflow-y-auto h-full fixed lg:relative z-50 lg:z-auto top-0 left-0 bottom-0 lg:inset-auto">
               <DesignSidebar
                 design={designForm}
                 dirty={designDirty}
