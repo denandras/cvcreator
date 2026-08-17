@@ -2,15 +2,13 @@ import { createBrowserClient as createSSRBrowserClient } from "@supabase/ssr";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
 /**
  * Browser client — uses anon key, respects RLS.
  * Used in client components.
  */
 export function createBrowserClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   return createSSRBrowserClient(supabaseUrl, supabaseAnonKey);
 }
 
@@ -19,6 +17,8 @@ export function createBrowserClient() {
  * Used in server actions / route handlers with explicit user checks.
  */
 export function createServiceClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   return createServerClient(
     supabaseUrl,
     supabaseServiceKey,
@@ -38,6 +38,8 @@ export function createServiceClient() {
  * Uses anon key so RLS applies naturally.
  */
 export async function createAuthClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   const cookieStore = await cookies();
   const allCookies = cookieStore.getAll();
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   DndContext,
   closestCenter,
@@ -47,6 +47,12 @@ import { getDesign, saveDesign, getUserCVs } from "@/app/actions/design-actions"
 import { CVPreview } from "@/components/cv-preview";
 import { DesignSidebar } from "@/components/design-sidebar";
 import { getTemplate, getPalette } from "@/lib/design-constants";
+import {
+  getProfilePicture,
+  setProfilePicture,
+  removeProfilePicture,
+} from "@/lib/profile-picture";
+import { exportToPdf } from "@/lib/pdf-export";
 
 export const SECTION_TYPES: SectionType[] = [
   "education",
@@ -96,6 +102,12 @@ export function EditorClient() {
   // Page breaks — indices into the sections array where breaks occur
   const [pageBreaks, setPageBreaks] = useState<number[]>([]);
 
+  // Profile picture — stored locally in browser only
+  const [profilePicture, setProfilePictureState] = useState<string | null>(null);
+  const [includePhotoInPdf, setIncludePhotoInPdf] = useState(true);
+  const [pdfExporting, setPdfExporting] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
+
   // DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -138,6 +150,12 @@ export function EditorClient() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Load profile picture from localStorage on mount
+  useEffect(() => {
+    const stored = getProfilePicture();
+    if (stored) setProfilePictureState(stored);
+  }, []);
 
   // ─── Section handlers ────────────────────────────────────────────────────
 
@@ -494,6 +512,39 @@ export function EditorClient() {
     setPageBreaks(pageBreaks.filter((b) => b !== idx));
   };
 
+  // ─── Profile picture handlers ────────────────────────────────────────────────
+
+  const handlePhotoUpload = async (file: File) => {
+    try {
+      const stored = await setProfilePicture(file);
+      setProfilePictureState(stored);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to upload photo");
+    }
+  };
+
+  const handlePhotoRemove = () => {
+    removeProfilePicture();
+    setProfilePictureState(null);
+  };
+
+  // ─── PDF export handler ──────────────────────────────────────────────────────
+
+  const handleExportPdf = async () => {
+    if (!previewRef.current) return;
+    setPdfExporting(true);
+    try {
+      await exportToPdf(previewRef.current, {
+        profileName: profileName || "CV",
+        includePhoto: includePhotoInPdf,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to export PDF");
+    } finally {
+      setPdfExporting(false);
+    }
+  };
+
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   if (authLoading) {
@@ -568,6 +619,30 @@ export function EditorClient() {
             Design
           </button>
 
+          {/* PDF export */}
+          <button
+            onClick={handleExportPdf}
+            disabled={pdfExporting || !sections.length}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
+          >
+            {pdfExporting ? (
+              <>
+                <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                </svg>
+                Exporting...
+              </>
+            ) : (
+              <>
+                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.293a1 1 0 011.414 0L9 11.586V3a1 1 0 112 0v8.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" />
+                </svg>
+                Export PDF
+              </>
+            )}
+          </button>
+
           <button
             onClick={() => signOut()}
             className="text-xs text-gray-400 hover:text-gray-700 px-2"
@@ -627,7 +702,7 @@ export function EditorClient() {
                       <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
                         Profile Header
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-3 mb-3">
                         <input
                           type="text"
                           value={profileName}
@@ -642,6 +717,66 @@ export function EditorClient() {
                           placeholder="Professional title"
                           className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"
                         />
+                      </div>
+
+                      {/* Profile picture upload */}
+                      <div className="border-t border-gray-100 pt-3">
+                        <div className="flex items-center gap-3">
+                          {profilePicture ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={profilePicture}
+                              alt="Profile preview"
+                              className="w-16 h-16 rounded-lg object-cover border-2 border-gray-200"
+                            />
+                          ) : (
+                            <div className="w-16 h-16 rounded-lg bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 text-xs text-center">
+                              No photo
+                            </div>
+                          )}
+                          <div className="flex-1 space-y-1.5">
+                            <label className="inline-block">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handlePhotoUpload(file);
+                                  e.target.value = "";
+                                }}
+                                className="hidden"
+                              />
+                              <span className="cursor-pointer text-xs font-medium text-indigo-600 hover:text-indigo-700 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition-colors inline-block">
+                                {profilePicture ? "Change photo" : "Upload photo"}
+                              </span>
+                            </label>
+                            {profilePicture && (
+                              <button
+                                onClick={handlePhotoRemove}
+                                className="block text-xs text-red-500 hover:text-red-700"
+                              >
+                                Remove photo
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {/* Local storage notice */}
+                        <div className="mt-2 flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+                          <svg className="h-4 w-4 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                          <span>Your photo stays in this browser only. It is never uploaded to a server.</span>
+                        </div>
+                        {/* Include in PDF toggle */}
+                        <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={includePhotoInPdf}
+                            onChange={(e) => setIncludePhotoInPdf(e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span className="text-xs text-gray-600">Include photo in exported PDF</span>
+                        </label>
                       </div>
                     </div>
 
@@ -701,7 +836,7 @@ export function EditorClient() {
                     viewMode === "split" ? "w-1/2" : "flex-1"
                   }`}
                 >
-                  <div className="p-6">
+                  <div className="p-6" ref={previewRef}>
                     <CVPreview
                       sections={sections}
                       design={designForm}
@@ -710,6 +845,7 @@ export function EditorClient() {
                       profileName={profileName}
                       profileTitle={profileTitle}
                       showPageBreaks
+                      profilePicture={includePhotoInPdf ? profilePicture : null}
                     />
                   </div>
                 </div>

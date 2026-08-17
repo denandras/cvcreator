@@ -18,6 +18,7 @@ interface CVPreviewProps {
   profileName?: string;
   profileTitle?: string;
   showPageBreaks?: boolean;
+  profilePicture?: string | null;
 }
 
 export function CVPreview({
@@ -28,6 +29,7 @@ export function CVPreview({
   profileName = "",
   profileTitle = "",
   showPageBreaks = false,
+  profilePicture = null,
 }: CVPreviewProps) {
   const template = getTemplate(design.template ?? "clean");
   const palette = getPalette(
@@ -203,41 +205,69 @@ export function CVPreview({
           }}
         >
           {/* Profile header — only on first page */}
-          {pageIdx === 0 && (profileName || profileTitle) && (
-            <div style={{ marginBottom: `${spacing.section}px`, textAlign: "center" }}>
-              {profileName && (
-                <h1
-                  className="font-bold"
+          {pageIdx === 0 && (profileName || profileTitle || profilePicture) && (
+            <div style={{ marginBottom: `${spacing.section}px` }} className="flex items-center gap-4">
+              {profilePicture && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={profilePicture}
+                  alt="Profile"
+                  crossOrigin="anonymous"
                   style={{
-                    fontSize: "1.75rem",
-                    color: primary,
-                    marginBottom: "4px",
-                    letterSpacing: "-0.02em",
+                    width: "96px",
+                    height: "96px",
+                    objectFit: "cover",
+                    borderRadius: `${Math.min(borderRadius, 12)}px`,
+                    flexShrink: 0,
+                    border: `2px solid ${accent}`,
                   }}
-                >
-                  {profileName}
-                </h1>
+                />
               )}
-              {profileTitle && (
+              <div style={{ textAlign: profilePicture ? "left" : "center", flex: 1 }}>
+                {profileName && (
+                  <h1
+                    className="font-bold"
+                    style={{
+                      fontSize: "1.75rem",
+                      color: primary,
+                      marginBottom: "4px",
+                      letterSpacing: "-0.02em",
+                    }}
+                  >
+                    {profileName}
+                  </h1>
+                )}
+                {profileTitle && (
+                  <div
+                    className="uppercase tracking-wider"
+                    style={{
+                      fontSize: "0.875rem",
+                      color: accent,
+                      fontWeight: 500,
+                      letterSpacing: "0.1em",
+                    }}
+                  >
+                    {profileTitle}
+                  </div>
+                )}
+              </div>
+              {!profilePicture && (
                 <div
-                  className="uppercase tracking-wider"
                   style={{
-                    fontSize: "0.875rem",
-                    color: accent,
-                    fontWeight: 500,
-                    letterSpacing: "0.1em",
+                    marginTop: "12px",
+                    borderBottom: `1px solid ${palette.surface}`,
                   }}
-                >
-                  {profileTitle}
-                </div>
+                />
               )}
-              <div
-                style={{
-                  marginTop: "12px",
-                  borderBottom: `1px solid ${palette.surface}`,
-                }}
-              />
             </div>
+          )}
+          {pageIdx === 0 && profilePicture && (profileName || profileTitle) && (
+            <div
+              style={{
+                marginBottom: `${spacing.section}px`,
+                borderBottom: `1px solid ${palette.surface}`,
+              }}
+            />
           )}
 
           {pageSections.map(renderSection)}
