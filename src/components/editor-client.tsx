@@ -1,11 +1,29 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+
 import { useAuth } from "@/lib/auth-context";
 import type {
   SectionWithEntries,
   CVDesign,
-  CV,
   SectionType,
   EntrySortMode,
 } from "@/types/database";
@@ -26,6 +44,9 @@ import {
   deleteTranslation,
 } from "@/app/actions/cv-actions";
 import { getDesign, saveDesign, getUserCVs } from "@/app/actions/design-actions";
+import { CVPreview } from "@/components/cv-preview";
+import { DesignSidebar } from "@/components/design-sidebar";
+import { getTemplate, getPalette } from "@/lib/design-constants";
 
 const SECTION_TYPES: SectionType[] = [
   "education",
@@ -39,11 +60,13 @@ const SECTION_TYPES: SectionType[] = [
 const SORT_MODES: EntrySortMode[] = ["year_asc", "year_desc", "custom"];
 
 const LANGUAGES = [
-  { code: "en", label: "English" },
-  { code: "hu", label: "Hungarian" },
-  { code: "de", label: "German" },
-  { code: "fr", label: "French" },
+  { code: "en", label: "EN", full: "English" },
+  { code: "hu", label: "HU", full: "Hungarian" },
+  { code: "de", label: "DE", full: "German" },
+  { code: "fr", label: "FR", full: "French" },
 ];
+
+type ViewMode = "edit" | "preview" | "split";
 
 export function EditorClient() {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -54,11 +77,30 @@ export function EditorClient() {
   const [error, setError] = useState<string | null>(null);
   const [activeLang, setActiveLang] = useState("en");
 
+  // View mode: edit / preview / split
+  const [viewMode, setViewMode] = useState<ViewMode>("edit");
+
+  // Design sidebar
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
   // Design form state (explicit save)
   const [designForm, setDesignForm] = useState<Partial<CVDesign>>({});
   const [designDirty, setDesignDirty] = useState(false);
   const [designSaving, setDesignSaving] = useState(false);
   const [designSaved, setDesignSaved] = useState(false);
+
+  // Profile info for preview header
+  const [profileName, setProfileName] = useState("");
+  const [profileTitle, setProfileTitle] = useState("");
+
+  // Page breaks — indices into the sections array where breaks occur
+  const [pageBreaks, setPageBreaks] = useState<number[]>([]);
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   // Load CV data
   const loadData = useCallback(async () => {
@@ -118,7 +160,6 @@ export function EditorClient() {
     id: string,
     patch: Partial<SectionWithEntries>
   ) => {
-    // Auto-save content
     try {
       await updateSection(id, patch);
       setSections((prev) =>
@@ -150,20 +191,21 @@ export function EditorClient() {
     }
   };
 
-  const handleReorderSections = async (newOrder: string[]) => {
+  const handleDragEndSection = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const ids = sections.map((s) => s.id);
+    const oldIndex = ids.indexOf(active.id as string);
+    const newIndex = ids.indexOf(over.id as string);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const newSections = arrayMove(sections, oldIndex, newIndex);
+    setSections(newSections);
     try {
-      await reorderSections(cvId!, newOrder);
-      setSections((prev) => {
-        const map = new Map(prev.map((s) => [s.id, s]));
-        return newOrder
-          .map((id, i) => {
-            const s = map.get(id);
-            return s ? { ...s, sort_order: i } : null;
-          })
-          .filter(Boolean) as SectionWithEntries[];
-      });
+      await reorderSections(cvId!, newSections.map((s) => s.id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to reorder sections");
+      setError(err instanceof Error ? err.message : "Failed to reorder");
+      setSections(sections); // revert
     }
   };
 
@@ -213,7 +255,6 @@ export function EditorClient() {
     sectionId: string,
     patch: Record<string, unknown>
   ) => {
-    // Auto-save content
     try {
       await updateEntry(entryId, patch);
       setSections((prev) =>
@@ -272,6 +313,32 @@ export function EditorClient() {
     }
   };
 
+  const handleDragEndEntry = async (
+    sectionId: string,
+    event: DragEndEvent
+  ) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const section = sections.find((s) => s.id === sectionId);
+    if (!section) return;
+    const ids = section.entries.map((e) => e.id);
+    const oldIndex = ids.indexOf(active.id as string);
+    const newIndex = ids.indexOf(over.id as string);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const newEntries = arrayMove(section.entries, oldIndex, newIndex);
+    setSections((prev) =>
+      prev.map((s) =>
+        s.id === sectionId ? { ...s, entries: newEntries } : s
+      )
+    );
+    try {
+      await reorderEntries(sectionId, newEntries.map((e) => e.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reorder entries");
+    }
+  };
+
   // ─── Translation handlers ────────────────────────────────────────────────
 
   const handleSaveTranslation = async (
@@ -310,9 +377,7 @@ export function EditorClient() {
         )
       );
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to save translation"
-      );
+      setError(err instanceof Error ? err.message : "Failed to save translation");
     }
   };
 
@@ -343,16 +408,47 @@ export function EditorClient() {
         )
       );
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to delete translation"
-      );
+      setError(err instanceof Error ? err.message : "Failed to delete translation");
     }
   };
 
-  // ─── Design handlers (explicit save) ──────────────────────────────────────
+  // ─── Design handlers ──────────────────────────────────────────────────────
 
   const handleDesignChange = (field: string, value: unknown) => {
     setDesignForm((prev) => ({ ...prev, [field]: value }));
+    setDesignDirty(true);
+    setDesignSaved(false);
+  };
+
+  const handleApplyTemplate = (templateId: string) => {
+    const tpl = getTemplate(templateId);
+    const pal = getPalette(tpl.defaultPalette);
+    setDesignForm((prev) => ({
+      ...prev,
+      template: templateId,
+      font_family: tpl.defaultFont,
+      primary_color: pal.primary,
+      accent_color: pal.accent,
+      custom_config: {
+        ...(prev.custom_config ?? {}),
+        paletteId: tpl.defaultPalette,
+      },
+    }));
+    setDesignDirty(true);
+    setDesignSaved(false);
+  };
+
+  const handleApplyPalette = (paletteId: string) => {
+    const pal = getPalette(paletteId);
+    setDesignForm((prev) => ({
+      ...prev,
+      primary_color: pal.primary,
+      accent_color: pal.accent,
+      custom_config: {
+        ...(prev.custom_config ?? {}),
+        paletteId,
+      },
+    }));
     setDesignDirty(true);
     setDesignSaved(false);
   };
@@ -373,6 +469,31 @@ export function EditorClient() {
     }
   };
 
+  // ─── Section layout config ──────────────────────────────────────────────
+
+  const handleSectionLayoutChange = async (
+    sectionId: string,
+    layoutKey: string,
+    value: unknown
+  ) => {
+    const section = sections.find((s) => s.id === sectionId);
+    if (!section) return;
+    const newConfig = { ...section.layout_config, [layoutKey]: value };
+    await handleUpdateSection(sectionId, { layout_config: newConfig });
+  };
+
+  // ─── Page break handlers ──────────────────────────────────────────────────
+
+  const handleAddPageBreak = (afterIdx: number) => {
+    if (!pageBreaks.includes(afterIdx + 1)) {
+      setPageBreaks([...pageBreaks, afterIdx + 1].sort((a, b) => a - b));
+    }
+  };
+
+  const handleRemovePageBreak = (idx: number) => {
+    setPageBreaks(pageBreaks.filter((b) => b !== idx));
+  };
+
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   if (authLoading) {
@@ -387,46 +508,47 @@ export function EditorClient() {
     return <p className="p-8">Please sign in.</p>;
   }
 
+  const showEditor = viewMode === "edit" || viewMode === "split";
+  const showPreview = viewMode === "preview" || viewMode === "split";
+
   return (
-    <div className="min-h-screen p-4 md:p-8 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">CV Editor</h1>
+    <div className="min-h-screen bg-gray-100 flex flex-col">
+      {/* Top toolbar */}
+      <div className="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center justify-between gap-4 sticky top-0 z-30">
         <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-500">{user.email}</span>
-          <button
-            onClick={() => signOut()}
-            className="text-sm text-indigo-600 hover:underline"
-          >
-            Sign Out
-          </button>
+          <h1 className="text-lg font-bold text-gray-900">CV Editor</h1>
+          <span className="text-xs text-gray-400 hidden sm:inline">{user.email}</span>
         </div>
-      </div>
 
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm flex justify-between items-center">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-900">
-            x
-          </button>
-        </div>
-      )}
+        <div className="flex items-center gap-2">
+          {/* View mode toggle */}
+          <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+            {(["edit", "split", "preview"] as ViewMode[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                  viewMode === mode
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {mode === "edit" ? "Edit" : mode === "split" ? "Split" : "Preview"}
+              </button>
+            ))}
+          </div>
 
-      {loading ? (
-        <p className="text-gray-500">Loading CV data...</p>
-      ) : (
-        <>
           {/* Language switcher */}
-          <div className="mb-4 flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-600">Language:</span>
+          <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
             {LANGUAGES.map((lang) => (
               <button
                 key={lang.code}
                 onClick={() => setActiveLang(lang.code)}
-                className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                title={lang.full}
+                className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all ${
                   activeLang === lang.code
-                    ? "bg-indigo-600 text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
                 }`}
               >
                 {lang.label}
@@ -434,92 +556,178 @@ export function EditorClient() {
             ))}
           </div>
 
-          {/* Sections */}
-          <div className="space-y-4 mb-6">
-            {sections.map((section, sectionIdx) => (
-              <SectionCard
-                key={section.id}
-                section={section}
-                activeLang={activeLang}
-                onMoveUp={
-                  sectionIdx > 0
-                    ? () => {
-                        const ids = sections.map((s) => s.id);
-                        [ids[sectionIdx - 1], ids[sectionIdx]] = [
-                          ids[sectionIdx],
-                          ids[sectionIdx - 1],
-                        ];
-                        handleReorderSections(ids);
-                      }
-                    : undefined
-                }
-                onMoveDown={
-                  sectionIdx < sections.length - 1
-                    ? () => {
-                        const ids = sections.map((s) => s.id);
-                        [ids[sectionIdx], ids[sectionIdx + 1]] = [
-                          ids[sectionIdx + 1],
-                          ids[sectionIdx],
-                        ];
-                        handleReorderSections(ids);
-                      }
-                    : undefined
-                }
-                onUpdate={(patch) => handleUpdateSection(section.id, patch)}
-                onDelete={() => handleDeleteSection(section.id)}
-                onToggle={(enabled) => handleToggleSection(section.id, enabled)}
-                onSortModeChange={(mode) =>
-                  handleSortModeChange(section.id, mode)
-                }
-                onAddEntry={() => handleAddEntry(section.id)}
-                onUpdateEntry={(entryId, patch) =>
-                  handleUpdateEntry(entryId, section.id, patch)
-                }
-                onDeleteEntry={(entryId) =>
-                  handleDeleteEntry(entryId, section.id)
-                }
-                onToggleEntry={(entryId, enabled) =>
-                  handleToggleEntry(entryId, section.id, enabled)
-                }
-                onSaveTranslation={(entryId, lang, fields) =>
-                  handleSaveTranslation(entryId, section.id, lang, fields)
-                }
-                onDeleteTranslation={(entryId, lang) =>
-                  handleDeleteTranslation(entryId, section.id, lang)
-                }
-              />
-            ))}
-          </div>
-
+          {/* Design sidebar toggle */}
           <button
-            onClick={handleAddSection}
-            className="w-full rounded-lg border-2 border-dashed border-gray-300 py-3 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors mb-8"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+              sidebarOpen
+                ? "bg-indigo-50 text-indigo-600"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
           >
-            + Add Section
+            Design
           </button>
 
-          {/* Design panel */}
-          <DesignPanel
-            design={designForm}
-            dirty={designDirty}
-            saving={designSaving}
-            saved={designSaved}
-            onChange={handleDesignChange}
-            onSave={handleSaveDesign}
-          />
-        </>
+          <button
+            onClick={() => signOut()}
+            className="text-xs text-gray-400 hover:text-gray-700 px-2"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="mx-4 mt-3 p-3 bg-red-50 text-red-700 rounded-lg text-sm flex justify-between items-center">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-900 font-bold">
+            x
+          </button>
+        </div>
       )}
+
+      {/* Main layout */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Design sidebar */}
+        {sidebarOpen && (
+          <div className="w-72 flex-shrink-0 overflow-y-auto max-h-[calc(100vh-56px)]">
+            <DesignSidebar
+              design={designForm}
+              dirty={designDirty}
+              saving={designSaving}
+              saved={designSaved}
+              onChange={handleDesignChange}
+              onSave={handleSaveDesign}
+              onApplyTemplate={handleApplyTemplate}
+              onApplyPalette={handleApplyPalette}
+              onSidebarClose={() => setSidebarOpen(false)}
+            />
+          </div>
+        )}
+
+        {/* Editor + Preview area */}
+        <div className="flex-1 flex overflow-hidden">
+          {loading ? (
+            <div className="flex-1 flex items-center justify-center">
+              <p className="text-gray-500">Loading CV data...</p>
+            </div>
+          ) : (
+            <>
+              {/* Editor pane */}
+              {showEditor && (
+                <div
+                  className={`overflow-y-auto max-h-[calc(100vh-56px)] ${
+                    viewMode === "split" ? "w-1/2 border-r border-gray-200" : "flex-1"
+                  }`}
+                >
+                  <div className="p-6 space-y-4">
+                    {/* Profile info inputs */}
+                    <div className="bg-white rounded-xl border border-gray-200 p-4">
+                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                        Profile Header
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <input
+                          type="text"
+                          value={profileName}
+                          onChange={(e) => setProfileName(e.target.value)}
+                          placeholder="Full name"
+                          className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"
+                        />
+                        <input
+                          type="text"
+                          value={profileTitle}
+                          onChange={(e) => setProfileTitle(e.target.value)}
+                          placeholder="Professional title"
+                          className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Sortable sections */}
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEndSection}
+                      modifiers={[restrictToVerticalAxis]}
+                    >
+                      <SortableContext
+                        items={sections.map((s) => s.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="space-y-3">
+                          {sections.map((section, sectionIdx) => (
+                            <SortableSectionCard
+                              key={section.id}
+                              section={section}
+                              activeLang={activeLang}
+                              sensors={sensors}
+                              onUpdate={(patch) => handleUpdateSection(section.id, patch)}
+                              onDelete={() => handleDeleteSection(section.id)}
+                              onToggle={(enabled) => handleToggleSection(section.id, enabled)}
+                              onSortModeChange={(mode) => handleSortModeChange(section.id, mode)}
+                              onAddEntry={() => handleAddEntry(section.id)}
+                              onUpdateEntry={(entryId, patch) => handleUpdateEntry(entryId, section.id, patch)}
+                              onDeleteEntry={(entryId) => handleDeleteEntry(entryId, section.id)}
+                              onToggleEntry={(entryId, enabled) => handleToggleEntry(entryId, section.id, enabled)}
+                              onSaveTranslation={(entryId, lang, fields) => handleSaveTranslation(entryId, section.id, lang, fields)}
+                              onDeleteTranslation={(entryId, lang) => handleDeleteTranslation(entryId, section.id, lang)}
+                              onDragEndEntry={(event) => handleDragEndEntry(section.id, event)}
+                              onLayoutChange={(key, val) => handleSectionLayoutChange(section.id, key, val)}
+                              onAddPageBreak={() => handleAddPageBreak(sectionIdx)}
+                              hasPageBreakAfter={pageBreaks.includes(sectionIdx + 1)}
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+
+                    {/* Add section + page break */}
+                    <button
+                      onClick={handleAddSection}
+                      className="w-full rounded-xl border-2 border-dashed border-gray-300 py-3 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+                    >
+                      + Add Section
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Preview pane */}
+              {showPreview && (
+                <div
+                  className={`overflow-y-auto bg-gray-200 max-h-[calc(100vh-56px)] ${
+                    viewMode === "split" ? "w-1/2" : "flex-1"
+                  }`}
+                >
+                  <div className="p-6">
+                    <CVPreview
+                      sections={sections}
+                      design={designForm}
+                      activeLang={activeLang}
+                      pageBreaks={pageBreaks}
+                      profileName={profileName}
+                      profileTitle={profileTitle}
+                      showPageBreaks
+                    />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
-// ─── Section Card ───────────────────────────────────────────────────────────
+// ─── Sortable Section Card ───────────────────────────────────────────────────
 
-interface SectionCardProps {
+interface SortableSectionCardProps {
   section: SectionWithEntries;
   activeLang: string;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
+  sensors: ReturnType<typeof useSensors>;
   onUpdate: (patch: Partial<SectionWithEntries>) => void;
   onDelete: () => void;
   onToggle: (enabled: boolean) => void;
@@ -534,139 +742,225 @@ interface SectionCardProps {
     fields: { title: string; organization: string; description: string }
   ) => void;
   onDeleteTranslation: (entryId: string, lang: string) => void;
+  onDragEndEntry: (event: DragEndEvent) => void;
+  onLayoutChange: (key: string, value: unknown) => void;
+  onAddPageBreak: () => void;
+  hasPageBreakAfter: boolean;
 }
 
-function SectionCard({
-  section,
-  activeLang,
-  onMoveUp,
-  onMoveDown,
-  onUpdate,
-  onDelete,
-  onToggle,
-  onSortModeChange,
-  onAddEntry,
-  onUpdateEntry,
-  onDeleteEntry,
-  onToggleEntry,
-  onSaveTranslation,
-  onDeleteTranslation,
-}: SectionCardProps) {
+function SortableSectionCard(props: SortableSectionCardProps) {
+  const { section, sensors } = props;
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: section.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
   const [expanded, setExpanded] = useState(true);
 
+  const currentColumns = (section.layout_config?.columns as string) ?? "auto";
+  const currentHeading = (section.layout_config?.headingStyle as string) ?? "auto";
+
   return (
-    <div
-      className={`rounded-xl border bg-white overflow-hidden ${
-        section.is_enabled ? "border-gray-200" : "border-gray-200 opacity-60"
-      }`}
-    >
-      {/* Section header */}
-      <div className="flex items-center gap-2 p-4">
-        <div className="flex flex-col">
+    <div ref={setNodeRef} style={style}>
+      <div
+        className={`rounded-xl border bg-white overflow-hidden transition-shadow ${
+          section.is_enabled ? "border-gray-200" : "border-gray-200 opacity-60"
+        } ${isDragging ? "shadow-lg ring-2 ring-indigo-300" : ""}`}
+      >
+        {/* Section header */}
+        <div className="flex items-center gap-2 p-3">
+          {/* Drag handle */}
           <button
-            onClick={onMoveUp}
-            disabled={!onMoveUp}
-            className="text-xs text-gray-400 hover:text-gray-700 disabled:opacity-30"
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 px-1 py-2"
+            title="Drag to reorder"
           >
-            ↑
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+              <circle cx="3" cy="3" r="1.5" />
+              <circle cx="3" cy="7" r="1.5" />
+              <circle cx="3" cy="11" r="1.5" />
+              <circle cx="11" cy="3" r="1.5" />
+              <circle cx="11" cy="7" r="1.5" />
+              <circle cx="11" cy="11" r="1.5" />
+            </svg>
           </button>
-          <button
-            onClick={onMoveDown}
-            disabled={!onMoveDown}
-            className="text-xs text-gray-400 hover:text-gray-700 disabled:opacity-30"
+
+          {/* Enable/disable checkbox */}
+          <label className="flex items-center cursor-pointer" title="Enable/disable in preview & PDF">
+            <input
+              type="checkbox"
+              checked={section.is_enabled}
+              onChange={(e) => props.onToggle(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+          </label>
+
+          {/* Title */}
+          <input
+            type="text"
+            value={section.title}
+            onChange={(e) => props.onUpdate({ title: e.target.value })}
+            onBlur={() => props.onUpdate({ title: section.title })}
+            className="flex-1 font-medium text-gray-900 bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none px-1 py-1"
+          />
+
+          {/* Section type */}
+          <select
+            value={section.section_type}
+            onChange={(e) => props.onUpdate({ section_type: e.target.value as SectionType })}
+            className="text-xs rounded-md border border-gray-300 px-2 py-1 bg-white text-gray-600"
           >
-            ↓
+            {SECTION_TYPES.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+
+          {/* Sort mode */}
+          <select
+            value={section.entry_sort_mode}
+            onChange={(e) => props.onSortModeChange(e.target.value as EntrySortMode)}
+            className="text-xs rounded-md border border-gray-300 px-2 py-1 bg-white text-gray-600"
+          >
+            {SORT_MODES.map((m) => (
+              <option key={m} value={m}>{m.replace("_", " ")}</option>
+            ))}
+          </select>
+
+          {/* Expand/collapse */}
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-gray-400 hover:text-gray-700 px-1.5 py-1"
+          >
+            {expanded ? "\u2212" : "+"}
+          </button>
+
+          {/* Delete */}
+          <button
+            onClick={props.onDelete}
+            className="text-red-400 hover:text-red-600 px-1 py-1 text-xs"
+          >
+            del
           </button>
         </div>
 
-        <input
-          type="checkbox"
-          checked={section.is_enabled}
-          onChange={(e) => onToggle(e.target.checked)}
-          className="h-4 w-4 rounded border-gray-300"
-        />
+        {/* Section layout options bar */}
+        {expanded && (
+          <div className="px-3 pb-2 flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-400">Cols:</span>
+              <div className="flex items-center bg-gray-50 rounded-md p-0.5">
+                {["auto", "one", "two"].map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => props.onLayoutChange("columns", c)}
+                    className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                      currentColumns === c
+                        ? "bg-white text-indigo-600 shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    {c === "auto" ? "Auto" : c === "one" ? "1-col" : "2-col"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-400">Heading:</span>
+              <select
+                value={currentHeading}
+                onChange={(e) => props.onLayoutChange("headingStyle", e.target.value)}
+                className="text-xs rounded-md border border-gray-200 px-1.5 py-0.5 bg-gray-50 text-gray-600"
+              >
+                <option value="auto">Auto</option>
+                <option value="underline">Underline</option>
+                <option value="border">Border</option>
+                <option value="filled">Filled</option>
+                <option value="minimal">Minimal</option>
+              </select>
+            </div>
+          </div>
+        )}
 
-        <input
-          type="text"
-          value={section.title}
-          onChange={(e) => onUpdate({ title: e.target.value })}
-          onBlur={() => onUpdate({ title: section.title })}
-          className="flex-1 font-medium text-gray-900 bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none"
-        />
+        {/* Entries with drag-and-drop */}
+        {expanded && (
+          <div className="px-3 pb-3 space-y-2">
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={props.onDragEndEntry}
+              modifiers={[restrictToVerticalAxis]}
+            >
+              <SortableContext
+                items={section.entries.map((e) => e.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {section.entries.map((entry) => {
+                  const translation = entry.translations.find(
+                    (t) => t.language === props.activeLang
+                  );
+                  return (
+                    <SortableEntryRow
+                      key={entry.id}
+                      entry={entry}
+                      translation={translation}
+                      activeLang={props.activeLang}
+                      onUpdate={(patch) => props.onUpdateEntry(entry.id, patch)}
+                      onDelete={() => props.onDeleteEntry(entry.id)}
+                      onToggle={(enabled) => props.onToggleEntry(entry.id, enabled)}
+                      onSaveTranslation={(lang, fields) => props.onSaveTranslation(entry.id, lang, fields)}
+                      onDeleteTranslation={(lang) => props.onDeleteTranslation(entry.id, lang)}
+                    />
+                  );
+                })}
+              </SortableContext>
+            </DndContext>
 
-        <select
-          value={section.section_type}
-          onChange={(e) =>
-            onUpdate({ section_type: e.target.value as SectionType })
-          }
-          className="text-sm rounded-lg border border-gray-300 px-2 py-1 bg-white"
-        >
-          {SECTION_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={section.entry_sort_mode}
-          onChange={(e) => onSortModeChange(e.target.value as EntrySortMode)}
-          className="text-sm rounded-lg border border-gray-300 px-2 py-1 bg-white"
-        >
-          {SORT_MODES.map((m) => (
-            <option key={m} value={m}>
-              {m.replace("_", " ")}
-            </option>
-          ))}
-        </select>
-
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="text-gray-400 hover:text-gray-700 px-2"
-        >
-          {expanded ? "−" : "+"}
-        </button>
-
-        <button
-          onClick={onDelete}
-          className="text-red-400 hover:text-red-600 px-1"
-        >
-          del
-        </button>
+            <button
+              onClick={props.onAddEntry}
+              className="w-full text-xs text-gray-400 hover:text-indigo-600 py-2 border border-dashed border-gray-200 rounded-lg hover:border-indigo-300 transition-colors"
+            >
+              + Add Entry
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Entries */}
-      {expanded && (
-        <div className="px-4 pb-4 space-y-2">
-          {section.entries.map((entry) => {
-            const translation = entry.translations.find(
-              (t) => t.language === activeLang
-            );
-
-            return (
-              <EntryRow
-                key={entry.id}
-                entry={entry}
-                translation={translation}
-                activeLang={activeLang}
-                onUpdate={(patch) => onUpdateEntry(entry.id, patch)}
-                onDelete={() => onDeleteEntry(entry.id)}
-                onToggle={(enabled) => onToggleEntry(entry.id, enabled)}
-                onSaveTranslation={(lang, fields) =>
-                  onSaveTranslation(entry.id, lang, fields)
-                }
-                onDeleteTranslation={(lang) =>
-                  onDeleteTranslation(entry.id, lang)
-                }
-              />
-            );
-          })}
-
+      {/* Page break indicator */}
+      {props.hasPageBreakAfter ? (
+        <div className="flex items-center justify-center py-2">
+          <div className="flex-1 border-t-2 border-dashed border-red-300" />
           <button
-            onClick={onAddEntry}
-            className="w-full text-sm text-gray-500 hover:text-indigo-600 py-2 border border-dashed border-gray-200 rounded-lg hover:border-indigo-300 transition-colors"
+            onClick={() => {}}
+            className="mx-2 text-xs text-red-400 font-medium"
           >
-            + Add Entry
+            Page break
+          </button>
+          <button
+            onClick={() => {}}
+            className="text-xs text-red-400 hover:text-red-600 mx-1"
+          >
+            remove
+          </button>
+          <div className="flex-1 border-t-2 border-dashed border-red-300" />
+        </div>
+      ) : (
+        <div className="flex justify-center -my-1 relative z-10">
+          <button
+            onClick={props.onAddPageBreak}
+            className="text-xs text-gray-300 hover:text-red-400 opacity-0 hover:opacity-100 transition-opacity py-0.5"
+          >
+            + page break
           </button>
         </div>
       )}
@@ -674,9 +968,9 @@ function SectionCard({
   );
 }
 
-// ─── Entry Row ──────────────────────────────────────────────────────────────
+// ─── Sortable Entry Row ──────────────────────────────────────────────────────
 
-interface EntryRowProps {
+interface SortableEntryRowProps {
   entry: SectionWithEntries["entries"][0];
   translation?: SectionWithEntries["entries"][0]["translations"][0];
   activeLang: string;
@@ -690,7 +984,7 @@ interface EntryRowProps {
   onDeleteTranslation: (lang: string) => void;
 }
 
-function EntryRow({
+function SortableEntryRow({
   entry,
   translation,
   activeLang,
@@ -699,17 +993,27 @@ function EntryRow({
   onToggle,
   onSaveTranslation,
   onDeleteTranslation,
-}: EntryRowProps) {
+}: SortableEntryRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: entry.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
   const [title, setTitle] = useState(translation?.title ?? "");
-  const [organization, setOrganization] = useState(
-    translation?.organization ?? ""
-  );
-  const [description, setDescription] = useState(
-    translation?.description ?? ""
-  );
+  const [organization, setOrganization] = useState(translation?.organization ?? "");
+  const [description, setDescription] = useState(translation?.description ?? "");
   const [showLangEditor, setShowLangEditor] = useState(false);
 
-  // Sync when language switches or translation changes
   useEffect(() => {
     setTitle(translation?.title ?? "");
     setOrganization(translation?.organization ?? "");
@@ -722,15 +1026,35 @@ function EntryRow({
 
   return (
     <div
-      className={`flex items-start gap-2 p-3 rounded-lg bg-gray-50 ${
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-start gap-2 p-2.5 rounded-lg bg-gray-50 group ${
         !entry.is_enabled ? "opacity-50" : ""
-      }`}
+      } ${isDragging ? "ring-2 ring-indigo-300 shadow-md" : ""}`}
     >
+      {/* Drag handle */}
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 mt-1"
+        title="Drag to reorder"
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+          <circle cx="2" cy="2" r="1.2" />
+          <circle cx="2" cy="6" r="1.2" />
+          <circle cx="2" cy="10" r="1.2" />
+          <circle cx="10" cy="2" r="1.2" />
+          <circle cx="10" cy="6" r="1.2" />
+          <circle cx="10" cy="10" r="1.2" />
+        </svg>
+      </button>
+
+      {/* Enable/disable checkbox */}
       <input
         type="checkbox"
         checked={entry.is_enabled}
         onChange={(e) => onToggle(e.target.checked)}
-        className="h-4 w-4 mt-1 rounded border-gray-300"
+        className="h-4 w-4 mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
       />
 
       <div className="flex-1 space-y-1">
@@ -739,9 +1063,7 @@ function EntryRow({
             type="number"
             value={entry.year ?? ""}
             onChange={(e) => {
-              const year = e.target.value
-                ? parseInt(e.target.value)
-                : null;
+              const year = e.target.value ? parseInt(e.target.value) : null;
               onUpdate({ year });
             }}
             placeholder="Year"
@@ -770,7 +1092,7 @@ function EntryRow({
           onBlur={handleSaveLang}
           placeholder="Description"
           rows={2}
-          className="w-full text-sm rounded border border-gray-300 px-2 py-1 bg-white"
+          className="w-full text-sm rounded border border-gray-300 px-2 py-1 bg-white resize-y"
         />
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400">
@@ -784,14 +1106,14 @@ function EntryRow({
           </button>
         </div>
         {showLangEditor && (
-          <div className="mt-2 space-y-1 p-2 bg-white rounded border border-gray-200">
+          <div className="mt-1 space-y-1 p-2 bg-white rounded border border-gray-200">
             {LANGUAGES.map((lang) => {
               const t = entry.translations.find((tr) => tr.language === lang.code);
               return (
                 <div key={lang.code} className="flex items-center gap-2 text-xs">
-                  <span className="w-20 font-medium">{lang.label}</span>
+                  <span className="w-20 font-medium">{lang.full}</span>
                   <span className="text-gray-600 flex-1">
-                    {t ? `${t.title ?? ""} ${t.organization ?? ""}`.trim() : "—"}
+                    {t ? `${t.title ?? ""} ${t.organization ?? ""}`.trim() : "\u2014"}
                   </span>
                   {t && (
                     <button
@@ -810,167 +1132,10 @@ function EntryRow({
 
       <button
         onClick={onDelete}
-        className="text-red-400 hover:text-red-600 text-sm px-1 mt-1"
+        className="text-red-400 hover:text-red-600 text-sm px-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
       >
         del
       </button>
-    </div>
-  );
-}
-
-// ─── Design Panel ─────────────────────────────────────────────────────────────
-
-interface DesignPanelProps {
-  design: Partial<CVDesign>;
-  dirty: boolean;
-  saving: boolean;
-  saved: boolean;
-  onChange: (field: string, value: unknown) => void;
-  onSave: () => void;
-}
-
-function DesignPanel({
-  design,
-  dirty,
-  saving,
-  saved,
-  onChange,
-  onSave,
-}: DesignPanelProps) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between p-4 hover:bg-gray-50"
-      >
-        <span className="font-medium">Design Settings</span>
-        <div className="flex items-center gap-2">
-          {dirty && (
-            <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
-              Unsaved changes
-            </span>
-          )}
-          {saved && (
-            <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
-              Saved!
-            </span>
-          )}
-          <span className="text-gray-400">{expanded ? "−" : "+"}</span>
-        </div>
-      </button>
-
-      {expanded && (
-        <div className="p-4 space-y-4 border-t border-gray-200">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Template
-              </label>
-              <select
-                value={design.template ?? "clean"}
-                onChange={(e) => onChange("template", e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white"
-              >
-                <option value="clean">Clean</option>
-                <option value="modern">Modern</option>
-                <option value="creative">Creative</option>
-                <option value="minimalist">Minimalist</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Font Family
-              </label>
-              <select
-                value={design.font_family ?? "inter"}
-                onChange={(e) => onChange("font_family", e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white"
-              >
-                <option value="inter">Inter</option>
-                <option value="georgia">Georgia</option>
-                <option value="helvetica">Helvetica</option>
-                <option value="times">Times New Roman</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Primary Color
-              </label>
-              <input
-                type="color"
-                value={design.primary_color ?? "#1a1a1a"}
-                onChange={(e) => onChange("primary_color", e.target.value)}
-                className="w-full h-10 rounded-lg border border-gray-300"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Accent Color
-              </label>
-              <input
-                type="color"
-                value={design.accent_color ?? "#4f46e5"}
-                onChange={(e) => onChange("accent_color", e.target.value)}
-                className="w-full h-10 rounded-lg border border-gray-300"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Spacing
-              </label>
-              <select
-                value={design.spacing ?? "normal"}
-                onChange={(e) => onChange("spacing", e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white"
-              >
-                <option value="compact">Compact</option>
-                <option value="normal">Normal</option>
-                <option value="relaxed">Relaxed</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Border Radius ({design.border_radius ?? 8}px)
-              </label>
-              <input
-                type="range"
-                min={0}
-                max={24}
-                value={design.border_radius ?? 8}
-                onChange={(e) =>
-                  onChange("border_radius", parseInt(e.target.value))
-                }
-                className="w-full"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Page Margin ({design.page_margin ?? 48}px)
-              </label>
-              <input
-                type="range"
-                min={16}
-                max={96}
-                value={design.page_margin ?? 48}
-                onChange={(e) =>
-                  onChange("page_margin", parseInt(e.target.value))
-                }
-                className="w-full"
-              />
-            </div>
-          </div>
-
-          <button
-            onClick={onSave}
-            disabled={!dirty || saving}
-            className="rounded-lg bg-indigo-600 px-6 py-2 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {saving ? "Saving..." : "Save Design"}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
