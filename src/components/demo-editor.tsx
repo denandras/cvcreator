@@ -106,8 +106,30 @@ export function DemoEditor() {
   const [profileTitle, setProfileTitle] = useState(() => loadDemoProfile().title);
   const [activeLang, setActiveLang] = useState("hu");
   const [languages, setLanguages] = useState<CustomLanguage[]>(DEMO_LANGUAGES);
-  const [viewMode, setViewMode] = useState<ViewMode>("split");
+  const [viewMode, setViewMode] = useState<ViewMode>(() =>
+    typeof window !== "undefined" && window.innerWidth < 768 ? "edit" : "split"
+  );
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Mobile detection — on mobile, use edit/preview toggle instead of split
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" && window.innerWidth < 768
+  );
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Auto-switch from split to edit when entering mobile
+  useEffect(() => {
+    if (isMobile && viewMode === "split") setViewMode("edit");
+  }, [isMobile, viewMode]);
+
+  // On mobile, default sidebar to closed
+  useEffect(() => {
+    if (window.innerWidth < 1024) setSidebarOpen(false);
+  }, []);
   const [designForm, setDesignForm] = useState<Partial<CVDesign>>(() => getDemoDesign());
   const [designDirty, setDesignDirty] = useState(false);
   const [designSaved, setDesignSaved] = useState(false);
@@ -464,8 +486,8 @@ export function DemoEditor() {
     setPageBreaks(pageBreaks.filter((b) => b !== idx));
   };
 
-  const showEditor = viewMode === "edit" || viewMode === "split";
-  const showPreview = viewMode === "preview" || viewMode === "split";
+  const showEditor = viewMode === "edit" || (!isMobile && viewMode === "split");
+  const showPreview = viewMode === "preview" || (!isMobile && viewMode === "split");
 
   return (
     <div className="h-full bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col overflow-hidden min-h-0">
@@ -479,21 +501,57 @@ export function DemoEditor() {
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
-          {/* View mode toggle */}
+          {/* View mode toggle — mobile shows edit/preview only, desktop adds split */}
           <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-            {(["edit", "split", "preview"] as ViewMode[]).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setViewMode(mode)}
-                className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                  viewMode === mode
-                    ? "bg-white text-teal-600 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {mode === "edit" ? "Edit" : mode === "split" ? "Split" : "Preview"}
-              </button>
-            ))}
+            {isMobile ? (
+              // Mobile: edit / preview toggle with icons
+              <>
+                <button
+                  onClick={() => setViewMode("edit")}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
+                    viewMode === "edit"
+                      ? "bg-white text-teal-600 shadow-sm"
+                      : "text-gray-500"
+                  }`}
+                  aria-label="Edit mode"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-9 9-4 1 1-4 1 1 4-1 1 9-9z" clipRule="evenodd" fillRule="evenodd" />
+                  </svg>
+                  Edit
+                </button>
+                <button
+                  onClick={() => setViewMode("preview")}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
+                    viewMode === "preview"
+                      ? "bg-white text-teal-600 shadow-sm"
+                      : "text-gray-500"
+                  }`}
+                  aria-label="Preview mode"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                    <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                  </svg>
+                  Preview
+                </button>
+              </>
+            ) : (
+              // Desktop: edit / split / preview
+              (["edit", "split", "preview"] as ViewMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                    viewMode === mode
+                      ? "bg-white text-teal-600 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {mode === "edit" ? "Edit" : mode === "split" ? "Split" : "Preview"}
+                </button>
+              ))
+            )}
           </div>
 
           {/* Language switcher — custom languages */}
