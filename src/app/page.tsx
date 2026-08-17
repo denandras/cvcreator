@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-8">
@@ -10,18 +12,18 @@ export default function Home() {
           support, and PDF export.
         </p>
         <div className="flex gap-4 justify-center pt-4">
-          <a
+          <Link
             href="/editor"
             className="rounded-lg bg-indigo-600 px-6 py-3 text-white font-medium hover:bg-indigo-700 transition-colors"
           >
             Get Started
-          </a>
-          <a
+          </Link>
+          <Link
             href="/demo"
             className="rounded-lg border border-gray-300 px-6 py-3 font-medium hover:bg-gray-100 transition-colors"
           >
             Try Demo
-          </a>
+          </Link>
         </div>
       </div>
     </main>

@@ -1,8 +1,13 @@
-export default function Editor() {
-  return (
-    <main className="min-h-screen p-8">
-      <h1 className="text-2xl font-bold mb-4">CV Editor</h1>
-      <p className="text-gray-600">The editor will be built here.</p>
-    </main>
-  );
+import { EditorClient } from "@/components/editor-client";
+import { AuthForm } from "@/components/auth-form";
+import { getAuthenticatedUser } from "@/lib/auth";
+
+export default async function EditorPage() {
+  const user = await getAuthenticatedUser();
+
+  if (!user) {
+    return <AuthForm />;
+  }
+
+  return <EditorClient />;
 }
