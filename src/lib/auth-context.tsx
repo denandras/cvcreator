@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { useKeepalive } from "@/lib/use-keepalive";
 
 interface AuthContextType {
   user: User | null;
@@ -60,6 +61,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut();
   };
+
+  // Keepalive heartbeat — ping every 5 min when tab is visible + session exists
+  useKeepalive(session);
 
   return (
     <AuthContext.Provider
