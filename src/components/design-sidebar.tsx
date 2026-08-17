@@ -310,9 +310,51 @@ export function DesignSidebar({
 
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                Margin Color
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={(design.custom_config?.marginColor as string) ?? "#ffffff"}
+                  onChange={(e) => onChange("custom_config", { ...(design.custom_config ?? {}), marginColor: e.target.value })}
+                  className="w-10 h-9 rounded-lg border border-gray-300 cursor-pointer"
+                />
+                <span className="text-xs text-gray-500">Page background color around content</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
                 Profile Image
               </label>
               <div className="space-y-3">
+                {/* Image position: left or right */}
+                <div>
+                  <span className="block text-xs font-medium text-gray-500 mb-1.5">Position</span>
+                  <div className="flex items-center bg-white rounded-md p-0.5 border border-gray-200">
+                    <button
+                      onClick={() => onChange("custom_config", { ...(design.custom_config ?? {}), profileImagePosition: "left" })}
+                      className={`flex-1 px-2 py-1.5 text-xs rounded transition-colors ${
+                        (design.custom_config?.profileImagePosition as string) !== "right"
+                          ? "bg-teal-50 text-teal-600 font-medium"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      Left
+                    </button>
+                    <button
+                      onClick={() => onChange("custom_config", { ...(design.custom_config ?? {}), profileImagePosition: "right" })}
+                      className={`flex-1 px-2 py-1.5 text-xs rounded transition-colors ${
+                        (design.custom_config?.profileImagePosition as string) === "right"
+                          ? "bg-teal-50 text-teal-600 font-medium"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      Right
+                    </button>
+                  </div>
+                </div>
+
                 {/* Rim toggle */}
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -379,7 +421,7 @@ export function DesignSidebar({
       </div>
 
       {/* Save button */}
-      <div className="border-t border-gray-200 p-4 flex-shrink-0">
+      <div className="border-t border-gray-200 p-4 flex-shrink-0" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
         <button
           onClick={onSave}
           disabled={!dirty || saving}

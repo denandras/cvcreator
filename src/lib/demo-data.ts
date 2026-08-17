@@ -49,7 +49,6 @@ function makeEntry(
 
 function makeSection(
   title: string,
-  sectionType: string,
   sortOrder: number,
   entries: EntryWithTranslations[]
 ): SectionWithEntries {
@@ -58,7 +57,6 @@ function makeSection(
     id: sectionId,
     cv_id: "demo-cv",
     title,
-    section_type: sectionType as any,
     is_enabled: true,
     sort_order: sortOrder,
     entry_sort_mode: "year_desc",
@@ -82,7 +80,7 @@ export function getDemoProfile(): DemoProfile {
 
 export function getDemoSections(): SectionWithEntries[] {
   return [
-    makeSection("Tapasztalat", "experience", 0, [
+    makeSection("Tapasztalat", 0, [
       makeEntry(2023, [
         { lang: "hu", title: "Vezető építész", organization: "KÖZÉPÍT Építészeti Stúdió Kft.", description: "Lakó- és közintézmények tervezése, projektmenedzsment, 12 fős csapat irányítása." },
         { lang: "en", title: "Lead Architect", organization: "KÖZÉPÍT Architecture Studio Ltd.", description: "Residential and institutional building design, project management, leading a 12-person team." },
@@ -102,7 +100,7 @@ export function getDemoSections(): SectionWithEntries[] {
         { lang: "fr", title: "Architecte junior", organization: "ARCH-I-DEA SARL", description: "Conception de maisons individuelles et de petits lotissements, visualisation 3D, communication client." },
       ]),
     ]),
-    makeSection("Tanulmányok", "education", 1, [
+    makeSection("Tanulmányok", 1, [
       makeEntry(2016, [
         { lang: "hu", title: "MSc Építészmérnöki", organization: "Budapesti Műszaki és Gazdaságtudományi Egyetem", description: "Diploma a Szent György építész szakon, diplomamunka: közösségi központ tervezése." },
         { lang: "en", title: "MSc Architecture", organization: "Budapest University of Technology and Economics", description: "Degree in architecture, thesis: community center design." },
@@ -116,7 +114,7 @@ export function getDemoSections(): SectionWithEntries[] {
         { lang: "fr", title: "Licence en Architecture", organization: "Université Technique de Budapest", description: "Études de premier cycle à la Faculté de Génie Civil, programme d'architecture." },
       ]),
     ]),
-    makeSection("Készségek", "skills", 2, [
+    makeSection("Készségek", 2, [
       makeEntry(null, [
         { lang: "hu", title: "AutoCAD, Revit, ArchiCAD, SketchUp", organization: null, description: "Tervezőszoftverek haladó szinten." },
         { lang: "en", title: "AutoCAD, Revit, ArchiCAD, SketchUp", organization: null, description: "Advanced level design software." },
@@ -130,7 +128,7 @@ export function getDemoSections(): SectionWithEntries[] {
         { lang: "fr", title: "Gestion de projet, leadership d'équipe", organization: null, description: "Méthodologie agile et en cascade, direction d'une équipe de 12 personnes." },
       ]),
     ]),
-    makeSection("Díjak", "awards", 3, [
+    makeSection("Díjak", 3, [
       makeEntry(2022, [
         { lang: "hu", title: "Év építésze — Magyar Építész Kamara", organization: "Magyar Építész Kamara", description: "Az év legjobb középület-terve kategóriában." },
         { lang: "en", title: "Architect of the Year — Hungarian Chamber of Architects", organization: "Hungarian Chamber of Architects", description: "Best public building design of the year." },
@@ -144,7 +142,7 @@ export function getDemoSections(): SectionWithEntries[] {
         { lang: "fr", title: "Prix d'Architecture de Budapest", organization: "Municipalité de Budapest", description: "Reconnaissance pour le projet de rénovation de l'Hôtel de Ville." },
       ]),
     ]),
-    makeSection("Projektek", "projects", 4, [
+    makeSection("Projektek", 4, [
       makeEntry(2023, [
         { lang: "hu", title: "Szent György Közösségi Központ", organization: "KÖZÉPÍT Stúdió", description: "2000 m²-es közösségi központ, passzívház szabvány, helyi anyagok." },
         { lang: "en", title: "St. George Community Center", organization: "KÖZÉPÍT Studio", description: "2000 m² community center, passive house standard, local materials." },

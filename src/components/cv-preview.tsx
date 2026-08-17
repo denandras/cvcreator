@@ -44,6 +44,10 @@ export function CVPreview({
   const primary = design.primary_color ?? palette.primary;
   const profileRim = (design.custom_config?.profileRim as boolean) ?? true;
   const profileRadius = (design.custom_config?.profileRadius as number) ?? 48;
+  // Profile image position: "left" (default) or "right"
+  const profileImagePosition = (design.custom_config?.profileImagePosition as string) ?? "left";
+  // Margin color as design element — defaults to palette bg
+  const pageMarginColor = (design.custom_config?.marginColor as string) ?? palette.bg;
 
   // Auto-pagination state
   const [autoPages, setAutoPages] = useState<SectionWithEntries[][]>([]);
@@ -205,15 +209,16 @@ export function CVPreview({
     );
   };
 
-  // Profile header renderer
+  // Profile header renderer — supports left/right image position
   const renderProfileHeader = () => {
     const safeName = sanitizeText(profileName);
     const safeTitle = sanitizeText(profileTitle);
     if (!safeName && !safeTitle && !profilePicture) return null;
+    const isRight = profileImagePosition === "right";
     return (
       <>
         <div style={{ marginBottom: `${spacing.section}px` }} className="flex items-center gap-4">
-          {profilePicture && (
+          {profilePicture && !isRight && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={profilePicture}
@@ -257,6 +262,22 @@ export function CVPreview({
               </div>
             )}
           </div>
+          {profilePicture && isRight && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={profilePicture}
+              alt="Profile"
+              crossOrigin="anonymous"
+              style={{
+                width: "96px",
+                height: "96px",
+                objectFit: "cover",
+                borderRadius: `${profileRadius}px`,
+                flexShrink: 0,
+                border: profileRim ? `2px solid ${accent}` : "none",
+              }}
+            />
+          )}
           {!profilePicture && (
             <div
               style={{
@@ -355,6 +376,40 @@ export function CVPreview({
   // Use auto pages if available, otherwise manual
   const pages = useAutoPaginate && autoPages.length > 0 ? autoPages : manualPages;
 
+  // Responsive scaling: scale the A4 page to fit the container width on mobile
+  const [scale, setScale] = useState(1);
+  const scaleRef = useRef(1);
+  useEffect(() => {
+    const updateScale = () => {
+      if (typeof window === "undefined") return;
+      const container = measureRef.current?.parentElement?.parentElement;
+      if (!container) return;
+      const containerWidth = container.clientWidth;
+      const padding = containerWidth < 640 ? 32 : 48;
+      const available = containerWidth - padding;
+      const newScale = available < PAGE_WIDTH ? available / PAGE_WIDTH : 1;
+      if (Math.abs(newScale - scaleRef.current) > 0.01) {
+        scaleRef.current = newScale;
+        setScale(newScale);
+      }
+    };
+    updateScale();
+    window.addEventListener("resize", updateScale);
+    const timer = setTimeout(updateScale, 100);
+    // Also observe container size changes (e.g. sidebar toggle, view mode switch)
+    const container = measureRef.current?.parentElement?.parentElement;
+    let observer: ResizeObserver | undefined;
+    if (container && typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(updateScale);
+      observer.observe(container);
+    }
+    return () => {
+      window.removeEventListener("resize", updateScale);
+      clearTimeout(timer);
+      observer?.disconnect();
+    };
+  }, [useAutoPaginate]);
+
   return (
     <>
       {/* Hidden measurement container for auto-pagination */}
@@ -383,37 +438,46 @@ export function CVPreview({
         </div>
       )}
 
-      <div className="flex flex-col items-center gap-4 w-full overflow-x-auto">
+      <div className="flex flex-col items-center gap-4 w-full">
         {pages.map((pageSections, pageIdx) => (
           <div
             key={pageIdx}
-            className="bg-white shadow-lg relative flex-shrink-0"
             style={{
-              width: `${PAGE_WIDTH}px`,
-              minHeight: `${PAGE_HEIGHT}px`,
-              maxHeight: useAutoPaginate ? `${PAGE_HEIGHT}px` : undefined,
-              overflow: useAutoPaginate ? "hidden" : "visible",
-              padding: `${pageMargin}px`,
-              fontFamily: fontStack,
-              color: palette.text,
-              backgroundColor: palette.bg,
-              borderRadius: `${Math.min(borderRadius, 4)}px`,
-              fontSize: "14px",
+              width: `${PAGE_WIDTH * scale}px`,
+              height: useAutoPaginate ? `${PAGE_HEIGHT * scale}px` : undefined,
             }}
           >
-            {/* Profile header — only on first page */}
-            {pageIdx === 0 && renderProfileHeader()}
+            <div
+              className="bg-white shadow-lg relative flex-shrink-0"
+              style={{
+                width: `${PAGE_WIDTH}px`,
+                minHeight: `${PAGE_HEIGHT}px`,
+                maxHeight: useAutoPaginate ? `${PAGE_HEIGHT}px` : undefined,
+                overflow: useAutoPaginate ? "hidden" : "visible",
+                padding: `${pageMargin}px`,
+                fontFamily: fontStack,
+                color: palette.text,
+                backgroundColor: pageMarginColor,
+                borderRadius: `${Math.min(borderRadius, 4)}px`,
+                fontSize: "14px",
+                transformOrigin: "top left",
+                transform: `scale(${scale})`,
+              }}
+            >
+              {/* Profile header — only on first page */}
+              {pageIdx === 0 && renderProfileHeader()}
 
-            {pageSections.map(renderSection)}
+              {pageSections.map(renderSection)}
 
-            {showPageBreaks && pageIdx < pages.length - 1 && (
-              <div
-                className="absolute left-0 right-0 border-t-2 border-dashed border-red-300"
-                style={{ bottom: "0" }}
-              >
-                <span className="absolute -top-5 right-2 text-xs text-red-400">Page break</span>
-              </div>
-            )}
+              {showPageBreaks && pageIdx < pages.length - 1 && (
+                <div
+                  className="absolute left-0 right-0 border-t-2 border-dashed border-red-300"
+                  style={{ bottom: "0" }}
+                >
+                  <span className="absolute -top-5 right-2 text-xs text-red-400">Page break</span>
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>

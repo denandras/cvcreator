@@ -25,7 +25,6 @@ import { useAuth } from "@/lib/auth-context";
 import type {
   SectionWithEntries,
   CVDesign,
-  SectionType,
   EntrySortMode,
 } from "@/types/database";
 import {
@@ -57,15 +56,6 @@ import { exportToPdf } from "@/lib/pdf-export";
 import type { CustomLanguage } from "@/lib/languages";
 import { ensureLanguages, saveLanguages } from "@/lib/languages";
 import { LanguageManager } from "@/components/language-manager";
-
-export const SECTION_TYPES: SectionType[] = [
-  "education",
-  "experience",
-  "skills",
-  "awards",
-  "projects",
-  "custom",
-];
 
 export const SORT_MODES: EntrySortMode[] = ["year_asc", "year_desc", "custom"];
 
@@ -207,7 +197,6 @@ export function EditorClient() {
       const newSection = await createSection({
         cv_id: cvId,
         title: "New Section",
-        section_type: "custom",
         sort_order: sections.length,
       });
       setSections([...sections, { ...newSection, entries: [] }]);
@@ -613,131 +602,115 @@ export function EditorClient() {
   const showPreview = viewMode === "preview" || (!isMobile && viewMode === "split");
 
   return (
-    <div className="h-full bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col overflow-hidden min-h-0">
-      {/* Top toolbar */}
-      <div className="bg-white border-b border-gray-200 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 sm:gap-4 flex-shrink-0 z-30">
-        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-          <h1 className="text-lg font-bold text-gray-900">CV Editor</h1>
-          <span className="text-xs text-gray-400 hidden md:inline">{user.email}</span>
-        </div>
-
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
-          {/* View mode toggle — mobile shows edit/preview only, desktop adds split */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-            {isMobile ? (
-              // Mobile: edit / preview toggle with icons
-              <>
-                <button
-                  onClick={() => setViewMode("edit")}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
-                    viewMode === "edit"
-                      ? "bg-white text-teal-600 shadow-sm"
-                      : "text-gray-500"
-                  }`}
-                  aria-label="Edit mode"
-                >
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+    <div className="h-full bg-gray-50 flex flex-col overflow-hidden min-h-0">
+      {/* Top toolbar — icon-only, no text labels */}
+      <div className="bg-white border-b border-gray-200 px-3 py-2 flex items-center justify-between flex-shrink-0 z-30" style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}>
+        {/* View mode toggle — icons only */}
+        <div className="flex items-center bg-gray-100 rounded-lg p-0.5 gap-0.5">
+          {isMobile ? (
+            <>
+              <button
+                onClick={() => setViewMode("edit")}
+                className={`p-2 rounded-md transition-all ${
+                  viewMode === "edit" ? "bg-white text-teal-600 shadow-sm" : "text-gray-500"
+                }`}
+                aria-label="Edit mode"
+                title="Edit"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-9 9-4 1 1-4 1 1 4-1 1 9-9z" clipRule="evenodd" fillRule="evenodd" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setViewMode("preview")}
+                className={`p-2 rounded-md transition-all ${
+                  viewMode === "preview" ? "bg-white text-teal-600 shadow-sm" : "text-gray-500"
+                }`}
+                aria-label="Preview mode"
+                title="Preview"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                  <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </>
+          ) : (
+            (["edit", "split", "preview"] as ViewMode[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`p-2 rounded-md transition-all ${
+                  viewMode === mode ? "bg-white text-teal-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}
+                aria-label={`${mode} mode`}
+                title={mode === "edit" ? "Edit" : mode === "split" ? "Split" : "Preview"}
+              >
+                {mode === "edit" ? (
+                  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M13.586 3.586a2 2 0 112.828 2.828l-9 9-4 1 1-4 1 1 4-1 1 9-9z" clipRule="evenodd" fillRule="evenodd" />
                   </svg>
-                  Edit
-                </button>
-                <button
-                  onClick={() => setViewMode("preview")}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
-                    viewMode === "preview"
-                      ? "bg-white text-teal-600 shadow-sm"
-                      : "text-gray-500"
-                  }`}
-                  aria-label="Preview mode"
-                >
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                ) : mode === "split" ? (
+                  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M3 3h6v14H3V3zm8 0h6v14h-6V3z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
                     <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                   </svg>
-                  Preview
-                </button>
-              </>
-            ) : (
-              // Desktop: edit / split / preview
-              (["edit", "split", "preview"] as ViewMode[]).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setViewMode(mode)}
-                  className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                    viewMode === mode
-                      ? "bg-white text-teal-600 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {mode === "edit" ? "Edit" : mode === "split" ? "Split" : "Preview"}
-                </button>
-              ))
-            )}
-          </div>
-
-          {/* Language switcher — custom languages */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-            {languages.map((lang) => (
-              <button
-                key={lang.code}
-                onClick={() => setActiveLang(lang.code)}
-                title={lang.full}
-                className={`px-2 sm:px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all ${
-                  activeLang === lang.code
-                    ? "bg-white text-teal-600 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {lang.label}
+                )}
               </button>
-            ))}
-            {languages.length === 0 && (
-              <span className="px-2.5 py-1.5 text-xs text-gray-400">No languages</span>
-            )}
-          </div>
+            ))
+          )}
+        </div>
 
+        {/* Action icons */}
+        <div className="flex items-center gap-1.5">
           {/* Design sidebar toggle */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-              sidebarOpen
-                ? "bg-teal-50 text-teal-600"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            className={`p-2 rounded-lg transition-all ${
+              sidebarOpen ? "bg-teal-50 text-teal-600" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
+            aria-label="Design panel"
+            title="Design"
           >
-            Design
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M3 4h14v2H3V4zm0 4h10v2H3V8zm0 4h14v2H3v-2zm0 4h8v2H3v-2z" />
+            </svg>
           </button>
 
           {/* PDF export */}
           <button
             onClick={handleExportPdf}
             disabled={pdfExporting || !sections.length}
-            className="px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
+            className="p-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            aria-label="Export PDF"
+            title="Export PDF"
           >
             {pdfExporting ? (
-              <>
-                <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                </svg>
-                <span className="hidden sm:inline">Exporting...</span>
-              </>
+              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
             ) : (
-              <>
-                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.293a1 1 0 011.414 0L9 11.586V3a1 1 0 112 0v8.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" />
-                </svg>
-                <span className="hidden sm:inline">Export PDF</span>
-              </>
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.293a1 1 0 011.414 0L9 11.586V3a1 1 0 112 0v8.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" />
+              </svg>
             )}
           </button>
 
+          {/* Sign out */}
           <button
             onClick={() => signOut()}
-            className="text-xs text-gray-400 hover:text-gray-700 px-1.5 sm:px-2"
+            className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
+            aria-label="Sign out"
+            title="Sign out"
           >
-            <span className="hidden sm:inline">Sign Out</span>
-            <span className="sm:hidden">⎋</span>
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3 3h8a1 1 0 010 2H5v10h6a1 1 0 110 2H3V3zm10.293 4.293a1 1 0 011.414 0L17.414 10l-2.707 2.707a1 1 0 01-1.414-1.414L13.586 11H7a1 1 0 110-2h6.586l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
           </button>
         </div>
       </div>
@@ -796,6 +769,29 @@ export function EditorClient() {
                   }`}
                 >
                   <div className="p-4 sm:p-6 space-y-4">
+                    {/* Language quick-switch — moved from header to edit pane */}
+                    {languages.length > 0 && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Lang:</span>
+                        <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                          {languages.map((lang) => (
+                            <button
+                              key={lang.code}
+                              onClick={() => setActiveLang(lang.code)}
+                              title={lang.full}
+                              className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                                activeLang === lang.code
+                                  ? "bg-white text-teal-600 shadow-sm"
+                                  : "text-gray-500 hover:text-gray-700"
+                              }`}
+                            >
+                              {lang.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Profile info inputs */}
                     <div className="bg-white rounded-xl border border-gray-200 p-4">
                       <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
@@ -935,6 +931,7 @@ export function EditorClient() {
                     {/* Add section + page break */}
                     <button
                       onClick={handleAddSection}
+                      style={{ marginBottom: "max(1rem, env(safe-area-inset-bottom))" }}
                       className="w-full rounded-xl border-2 border-dashed border-teal-300 bg-gradient-to-b from-teal-50/50 to-teal-50/20 py-4 text-teal-700 font-semibold hover:from-teal-50 hover:to-teal-100 hover:border-teal-500 transition-all flex items-center justify-center gap-1.5 shadow-sm"
                     >
                       <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
@@ -949,7 +946,7 @@ export function EditorClient() {
               {/* Preview pane */}
               {showPreview && (
                 <div
-                  className={`overflow-y-auto bg-gray-200 min-w-0 min-h-0 ${
+                  className={`overflow-y-auto bg-gray-100 min-w-0 min-h-0 ${
                     viewMode === "split"
                       ? "flex-1 lg:h-full lg:w-1/2 lg:flex-initial"
                       : "flex-1 h-full"
@@ -1030,9 +1027,11 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
   return (
     <div ref={setNodeRef} style={style}>
       <div
-        className={`rounded-xl border bg-white overflow-hidden transition-shadow shadow-sm ${
-          section.is_enabled ? "border-gray-200" : "border-gray-200 opacity-60"
-        } ${isDragging ? "shadow-lg ring-2 ring-teal-300" : "hover:shadow-md"}`}
+        className={`rounded-xl border bg-white overflow-hidden transition-shadow ${
+          section.is_enabled
+            ? "border-gray-200 shadow-sm hover:shadow-md"
+            : "border-gray-200 opacity-60 shadow-sm"
+        } ${isDragging ? "shadow-lg ring-2 ring-teal-300" : ""}`}
       >
         {/* Section header */}
         <div className="flex items-center gap-2 p-3 flex-wrap bg-gradient-to-r from-gray-50 to-white">
@@ -1072,18 +1071,8 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
             className="flex-1 min-w-[120px] font-semibold text-gray-800 bg-transparent border-b border-transparent focus:border-teal-500 focus:outline-none px-1 py-1 text-sm"
           />
 
-          {/* Section type + Sort mode */}
+          {/* Sort mode */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            <select
-              value={section.section_type}
-              onChange={(e) => props.onUpdate({ section_type: e.target.value as SectionType })}
-              className="text-xs rounded-lg border border-gray-200 px-2 py-1 bg-gray-50 text-gray-500 capitalize"
-            >
-              {SECTION_TYPES.map((t) => (
-                <option key={t} value={t} className="capitalize">{t}</option>
-              ))}
-            </select>
-
             <select
               value={section.entry_sort_mode}
               onChange={(e) => props.onSortModeChange(e.target.value as EntrySortMode)}
@@ -1365,13 +1354,13 @@ export function SortableEntryRow({
         />
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400 italic">
-            {entry.translations.length} translation{entry.translations.length !== 1 ? "s" : ""}
+            {entry.translations.filter((t) => t.title || t.organization || t.description).length}/{languages.length} languages
           </span>
           <button
             onClick={() => setShowLangEditor(!showLangEditor)}
             className="text-xs text-teal-500 hover:text-teal-700 font-medium"
           >
-            {showLangEditor ? "Hide translations" : "Edit translations"}
+            {showLangEditor ? "Hide" : "Edit"}
           </button>
         </div>
         {showLangEditor && (

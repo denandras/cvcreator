@@ -69,7 +69,6 @@ export async function createSection(input: SectionInput): Promise<CVSection> {
     .insert({
       cv_id: input.cv_id,
       title: input.title,
-      section_type: input.section_type ?? "custom",
       is_enabled: input.is_enabled ?? true,
       sort_order: input.sort_order ?? 0,
       entry_sort_mode: input.entry_sort_mode ?? "year_desc",

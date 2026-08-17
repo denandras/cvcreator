@@ -1,13 +1,5 @@
 // Database types matching the Supabase schema
 
-export type SectionType =
-  | "education"
-  | "experience"
-  | "skills"
-  | "awards"
-  | "projects"
-  | "custom";
-
 export type EntrySortMode = "year_asc" | "year_desc" | "custom";
 
 export type Spacing = "compact" | "normal" | "relaxed";
@@ -32,7 +24,6 @@ export interface CVSection {
   id: string;
   cv_id: string;
   title: string;
-  section_type: SectionType;
   is_enabled: boolean;
   sort_order: number;
   entry_sort_mode: EntrySortMode;
@@ -84,7 +75,6 @@ export interface CVDesign {
 export interface SectionInput {
   cv_id: string;
   title: string;
-  section_type?: SectionType;
   is_enabled?: boolean;
   sort_order?: number;
   entry_sort_mode?: EntrySortMode;

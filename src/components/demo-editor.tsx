@@ -22,14 +22,11 @@ import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import type {
   SectionWithEntries,
   CVDesign,
-  SectionType,
   EntrySortMode,
   EntryWithTranslations,
 } from "@/types/database";
 import {
   SortableSectionCard,
-  SECTION_TYPES,
-  SORT_MODES,
 } from "@/components/editor-client";
 import { LanguageManager } from "@/components/language-manager";
 import type { CustomLanguage } from "@/lib/languages";
@@ -244,7 +241,6 @@ export function DemoEditor() {
       id: genDemoId("sec"),
       cv_id: "demo-cv",
       title: "Új szekció",
-      section_type: "custom",
       is_enabled: true,
       sort_order: sections.length,
       entry_sort_mode: "year_desc",
@@ -491,133 +487,114 @@ export function DemoEditor() {
   const showPreview = viewMode === "preview" || (!isMobile && viewMode === "split");
 
   return (
-    <div className="h-full bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col overflow-hidden min-h-0">
-      {/* Top toolbar */}
-      <div className="bg-white border-b border-gray-200 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 sm:gap-4 flex-shrink-0 z-30">
-        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-          <h1 className="text-lg font-bold text-gray-900">CV Editor</h1>
-          <span className="text-xs text-amber-600 font-medium px-2 py-0.5 bg-amber-50 rounded">
-            Demo Mode
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
-          {/* View mode toggle — mobile shows edit/preview only, desktop adds split */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-            {isMobile ? (
-              // Mobile: edit / preview toggle with icons
-              <>
-                <button
-                  onClick={() => setViewMode("edit")}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
-                    viewMode === "edit"
-                      ? "bg-white text-teal-600 shadow-sm"
-                      : "text-gray-500"
-                  }`}
-                  aria-label="Edit mode"
-                >
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+    <div className="h-full bg-gray-50 flex flex-col overflow-hidden min-h-0">
+      {/* Top toolbar — icon-only, no text labels */}
+      <div className="bg-white border-b border-gray-200 px-3 py-2 flex items-center justify-between flex-shrink-0 z-30" style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}>
+        {/* View mode toggle — icons only */}
+        <div className="flex items-center bg-gray-100 rounded-lg p-0.5 gap-0.5">
+          {isMobile ? (
+            <>
+              <button
+                onClick={() => setViewMode("edit")}
+                className={`p-2 rounded-md transition-all ${
+                  viewMode === "edit" ? "bg-white text-teal-600 shadow-sm" : "text-gray-500"
+                }`}
+                aria-label="Edit mode"
+                title="Edit"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-9 9-4 1 1-4 1 1 4-1 1 9-9z" clipRule="evenodd" fillRule="evenodd" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setViewMode("preview")}
+                className={`p-2 rounded-md transition-all ${
+                  viewMode === "preview" ? "bg-white text-teal-600 shadow-sm" : "text-gray-500"
+                }`}
+                aria-label="Preview mode"
+                title="Preview"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                  <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </>
+          ) : (
+            (["edit", "split", "preview"] as ViewMode[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`p-2 rounded-md transition-all ${
+                  viewMode === mode ? "bg-white text-teal-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}
+                aria-label={`${mode} mode`}
+                title={mode === "edit" ? "Edit" : mode === "split" ? "Split" : "Preview"}
+              >
+                {mode === "edit" ? (
+                  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M13.586 3.586a2 2 0 112.828 2.828l-9 9-4 1 1-4 1 1 4-1 1 9-9z" clipRule="evenodd" fillRule="evenodd" />
                   </svg>
-                  Edit
-                </button>
-                <button
-                  onClick={() => setViewMode("preview")}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
-                    viewMode === "preview"
-                      ? "bg-white text-teal-600 shadow-sm"
-                      : "text-gray-500"
-                  }`}
-                  aria-label="Preview mode"
-                >
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                ) : mode === "split" ? (
+                  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M3 3h6v14H3V3zm8 0h6v14h-6V3z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
                     <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                   </svg>
-                  Preview
-                </button>
-              </>
-            ) : (
-              // Desktop: edit / split / preview
-              (["edit", "split", "preview"] as ViewMode[]).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setViewMode(mode)}
-                  className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                    viewMode === mode
-                      ? "bg-white text-teal-600 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {mode === "edit" ? "Edit" : mode === "split" ? "Split" : "Preview"}
-                </button>
-              ))
-            )}
-          </div>
-
-          {/* Language switcher — custom languages */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-            {languages.map((lang) => (
-              <button
-                key={lang.code}
-                onClick={() => setActiveLang(lang.code)}
-                title={lang.full}
-                className={`px-2 sm:px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all ${
-                  activeLang === lang.code
-                    ? "bg-white text-teal-600 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {lang.label}
+                )}
               </button>
-            ))}
-            {languages.length === 0 && (
-              <span className="px-2.5 py-1.5 text-xs text-gray-400">No languages</span>
-            )}
-          </div>
+            ))
+          )}
+        </div>
 
+        {/* Action icons */}
+        <div className="flex items-center gap-1.5">
           {/* Design sidebar toggle */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-              sidebarOpen
-                ? "bg-teal-50 text-teal-600"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            className={`p-2 rounded-lg transition-all ${
+              sidebarOpen ? "bg-teal-50 text-teal-600" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
+            aria-label="Design panel"
+            title="Design"
           >
-            Design
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M3 4h14v2H3V4zm0 4h10v2H3V8zm0 4h14v2H3v-2zm0 4h8v2H3v-2z" />
+            </svg>
           </button>
 
           {/* Reset demo */}
           <button
             onClick={resetDemo}
-            className="px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+            className="p-2 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+            aria-label="Reset demo"
+            title="Reset demo"
           >
-            <span className="hidden sm:inline">Reset Demo</span>
-            <span className="sm:hidden">Reset</span>
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 01-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+            </svg>
           </button>
 
           {/* PDF export */}
           <button
             onClick={handleExportPdf}
             disabled={pdfExporting || !sections.length}
-            className="px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
+            className="p-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            aria-label="Export PDF"
+            title="Export PDF"
           >
             {pdfExporting ? (
-              <>
-                <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                </svg>
-                <span className="hidden sm:inline">Exporting...</span>
-              </>
+              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
             ) : (
-              <>
-                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.293a1 1 0 011.414 0L9 11.586V3a1 1 0 112 0v8.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" />
-                </svg>
-                <span className="hidden sm:inline">Export PDF</span>
-              </>
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.293a1 1 0 011.414 0L9 11.586V3a1 1 0 112 0v8.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" />
+              </svg>
             )}
           </button>
         </div>
@@ -661,6 +638,29 @@ export function DemoEditor() {
               }`}
             >
               <div className="p-4 sm:p-6 space-y-4">
+                {/* Language quick-switch — moved from header to edit pane */}
+                {languages.length > 0 && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Lang:</span>
+                    <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                      {languages.map((lang) => (
+                        <button
+                          key={lang.code}
+                          onClick={() => setActiveLang(lang.code)}
+                          title={lang.full}
+                          className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                            activeLang === lang.code
+                              ? "bg-white text-teal-600 shadow-sm"
+                              : "text-gray-500 hover:text-gray-700"
+                          }`}
+                        >
+                          {lang.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Profile info inputs */}
                 <div className="bg-white rounded-xl border border-gray-200 p-4">
                   <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
@@ -797,6 +797,7 @@ export function DemoEditor() {
                 {/* Add section */}
                 <button
                   onClick={handleAddSection}
+                  style={{ marginBottom: "max(1rem, env(safe-area-inset-bottom))" }}
                   className="w-full rounded-xl border-2 border-dashed border-teal-300 bg-gradient-to-b from-teal-50/50 to-teal-50/20 py-4 text-teal-700 font-semibold hover:from-teal-50 hover:to-teal-100 hover:border-teal-500 transition-all flex items-center justify-center gap-1.5 shadow-sm"
                 >
                   <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
@@ -812,7 +813,7 @@ export function DemoEditor() {
           {showPreview && (
             <div
               ref={previewRef}
-              className={`overflow-y-auto bg-gray-200 min-w-0 min-h-0 ${
+              className={`overflow-y-auto bg-gray-100 min-w-0 min-h-0 ${
                 viewMode === "split"
                   ? "flex-1 lg:h-full lg:w-1/2 lg:flex-initial"
                   : "flex-1 h-full"

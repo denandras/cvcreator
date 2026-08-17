@@ -31,7 +31,6 @@ create table if not exists public.cv_sections (
   id uuid primary key default gen_random_uuid(),
   cv_id uuid not null references public.cvs(id) on delete cascade,
   title text not null,
-  section_type text default 'custom', -- education, experience, skills, awards, projects, custom
   is_enabled boolean default true,
   sort_order int default 0,           -- custom ordering of sections within a CV
   entry_sort_mode text default 'year_desc', -- year_asc, year_desc, custom
