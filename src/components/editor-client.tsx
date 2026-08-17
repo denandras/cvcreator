@@ -48,7 +48,7 @@ import { CVPreview } from "@/components/cv-preview";
 import { DesignSidebar } from "@/components/design-sidebar";
 import { getTemplate, getPalette } from "@/lib/design-constants";
 
-const SECTION_TYPES: SectionType[] = [
+export const SECTION_TYPES: SectionType[] = [
   "education",
   "experience",
   "skills",
@@ -57,9 +57,9 @@ const SECTION_TYPES: SectionType[] = [
   "custom",
 ];
 
-const SORT_MODES: EntrySortMode[] = ["year_asc", "year_desc", "custom"];
+export const SORT_MODES: EntrySortMode[] = ["year_asc", "year_desc", "custom"];
 
-const LANGUAGES = [
+export const LANGUAGES = [
   { code: "en", label: "EN", full: "English" },
   { code: "hu", label: "HU", full: "Hungarian" },
   { code: "de", label: "DE", full: "German" },
@@ -724,7 +724,7 @@ export function EditorClient() {
 
 // ─── Sortable Section Card ───────────────────────────────────────────────────
 
-interface SortableSectionCardProps {
+export interface SortableSectionCardProps {
   section: SectionWithEntries;
   activeLang: string;
   sensors: ReturnType<typeof useSensors>;
@@ -748,7 +748,7 @@ interface SortableSectionCardProps {
   hasPageBreakAfter: boolean;
 }
 
-function SortableSectionCard(props: SortableSectionCardProps) {
+export function SortableSectionCard(props: SortableSectionCardProps) {
   const { section, sensors } = props;
   const {
     attributes,
@@ -970,7 +970,7 @@ function SortableSectionCard(props: SortableSectionCardProps) {
 
 // ─── Sortable Entry Row ──────────────────────────────────────────────────────
 
-interface SortableEntryRowProps {
+export interface SortableEntryRowProps {
   entry: SectionWithEntries["entries"][0];
   translation?: SectionWithEntries["entries"][0]["translations"][0];
   activeLang: string;
@@ -984,7 +984,7 @@ interface SortableEntryRowProps {
   onDeleteTranslation: (lang: string) => void;
 }
 
-function SortableEntryRow({
+export function SortableEntryRow({
   entry,
   translation,
   activeLang,
