@@ -29,8 +29,11 @@ import {
   SortableSectionCard,
   SECTION_TYPES,
   SORT_MODES,
-  LANGUAGES,
+  DEFAULT_LANGUAGES,
 } from "@/components/editor-client";
+import { LanguageManager } from "@/components/language-manager";
+import type { CustomLanguage } from "@/lib/languages";
+import { ensureLanguages, saveLanguages } from "@/lib/languages";
 import { CVPreview } from "@/components/cv-preview";
 import { DesignSidebar } from "@/components/design-sidebar";
 import { getTemplate, getPalette } from "@/lib/design-constants";
@@ -55,6 +58,7 @@ export function DemoEditor() {
   const [profileName, setProfileName] = useState(getDemoProfile().name);
   const [profileTitle, setProfileTitle] = useState(getDemoProfile().title);
   const [activeLang, setActiveLang] = useState("hu");
+  const [languages, setLanguages] = useState<CustomLanguage[]>(DEFAULT_LANGUAGES);
   const [viewMode, setViewMode] = useState<ViewMode>("split");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [designForm, setDesignForm] = useState<Partial<CVDesign>>(() => getDemoDesign());
@@ -79,6 +83,7 @@ export function DemoEditor() {
     setProfileName(getDemoProfile().name);
     setProfileTitle(getDemoProfile().title);
     setActiveLang("hu");
+    setLanguages(DEFAULT_LANGUAGES);
     setPageBreaks([]);
     setDesignDirty(false);
     setDesignSaved(false);
@@ -89,6 +94,20 @@ export function DemoEditor() {
     const stored = getProfilePicture();
     if (stored) setProfilePictureState(stored);
   }, []);
+
+  // Load custom languages from localStorage on mount
+  useEffect(() => {
+    const stored = ensureLanguages();
+    setLanguages(stored);
+    if (stored.length > 0 && !stored.find((l) => l.code === activeLang)) {
+      setActiveLang(stored[0].code);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleLanguagesChange = (updated: CustomLanguage[]) => {
+    setLanguages(updated);
+    saveLanguages(updated);
+  };
 
   // ─── Photo handlers ────────────────────────────────────────────────────────
 
@@ -404,9 +423,9 @@ export function DemoEditor() {
             ))}
           </div>
 
-          {/* Language switcher */}
+          {/* Language switcher — custom languages */}
           <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-            {LANGUAGES.map((lang) => (
+            {languages.map((lang) => (
               <button
                 key={lang.code}
                 onClick={() => setActiveLang(lang.code)}
@@ -420,6 +439,9 @@ export function DemoEditor() {
                 {lang.label}
               </button>
             ))}
+            {languages.length === 0 && (
+              <span className="px-2.5 py-1.5 text-xs text-gray-400">No languages</span>
+            )}
           </div>
 
           {/* Design sidebar toggle */}
@@ -573,6 +595,14 @@ export function DemoEditor() {
                   </div>
                 </div>
 
+                {/* Language management */}
+                <LanguageManager
+                  languages={languages}
+                  onChange={handleLanguagesChange}
+                  activeLang={activeLang}
+                  onActiveLangChange={setActiveLang}
+                />
+
                 {/* Sortable sections */}
                 <DndContext
                   sensors={sensors}
@@ -590,6 +620,7 @@ export function DemoEditor() {
                           key={section.id}
                           section={section}
                           activeLang={activeLang}
+                          languages={languages}
                           sensors={sensors}
                           onUpdate={(patch) => handleUpdateSection(section.id, patch)}
                           onDelete={() => handleDeleteSection(section.id)}

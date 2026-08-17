@@ -53,6 +53,9 @@ import {
   removeProfilePicture,
 } from "@/lib/profile-picture";
 import { exportToPdf } from "@/lib/pdf-export";
+import type { CustomLanguage } from "@/lib/languages";
+import { ensureLanguages, saveLanguages } from "@/lib/languages";
+import { LanguageManager } from "@/components/language-manager";
 
 export const SECTION_TYPES: SectionType[] = [
   "education",
@@ -65,11 +68,10 @@ export const SECTION_TYPES: SectionType[] = [
 
 export const SORT_MODES: EntrySortMode[] = ["year_asc", "year_desc", "custom"];
 
-export const LANGUAGES = [
-  { code: "en", label: "EN", full: "English" },
+// Replaced hardcoded LANGUAGES — now user-managed custom languages
+export const DEFAULT_LANGUAGES: CustomLanguage[] = [
   { code: "hu", label: "HU", full: "Hungarian" },
-  { code: "de", label: "DE", full: "German" },
-  { code: "fr", label: "FR", full: "French" },
+  { code: "en", label: "EN", full: "English" },
 ];
 
 type ViewMode = "edit" | "preview" | "split";
@@ -81,7 +83,10 @@ export function EditorClient() {
   const [design, setDesign] = useState<CVDesign | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeLang, setActiveLang] = useState("en");
+  const [activeLang, setActiveLang] = useState("hu");
+
+  // Custom languages — user-managed, persisted to localStorage
+  const [languages, setLanguages] = useState<CustomLanguage[]>(DEFAULT_LANGUAGES);
 
   // View mode: edit / preview / split
   const [viewMode, setViewMode] = useState<ViewMode>("edit");
@@ -156,6 +161,21 @@ export function EditorClient() {
     const stored = getProfilePicture();
     if (stored) setProfilePictureState(stored);
   }, []);
+
+  // Load custom languages from localStorage on mount
+  useEffect(() => {
+    const stored = ensureLanguages();
+    setLanguages(stored);
+    // If active lang is not in stored languages, switch to first available
+    if (stored.length > 0 && !stored.find((l) => l.code === activeLang)) {
+      setActiveLang(stored[0].code);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleLanguagesChange = (updated: CustomLanguage[]) => {
+    setLanguages(updated);
+    saveLanguages(updated);
+  };
 
   // ─── Section handlers ────────────────────────────────────────────────────
 
@@ -589,9 +609,9 @@ export function EditorClient() {
             ))}
           </div>
 
-          {/* Language switcher */}
+          {/* Language switcher — custom languages */}
           <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-            {LANGUAGES.map((lang) => (
+            {languages.map((lang) => (
               <button
                 key={lang.code}
                 onClick={() => setActiveLang(lang.code)}
@@ -605,6 +625,9 @@ export function EditorClient() {
                 {lang.label}
               </button>
             ))}
+            {languages.length === 0 && (
+              <span className="px-2.5 py-1.5 text-xs text-gray-400">No languages</span>
+            )}
           </div>
 
           {/* Design sidebar toggle */}
@@ -780,6 +803,14 @@ export function EditorClient() {
                       </div>
                     </div>
 
+                    {/* Language management */}
+                    <LanguageManager
+                      languages={languages}
+                      onChange={handleLanguagesChange}
+                      activeLang={activeLang}
+                      onActiveLangChange={setActiveLang}
+                    />
+
                     {/* Sortable sections */}
                     <DndContext
                       sensors={sensors}
@@ -797,6 +828,7 @@ export function EditorClient() {
                               key={section.id}
                               section={section}
                               activeLang={activeLang}
+                              languages={languages}
                               sensors={sensors}
                               onUpdate={(patch) => handleUpdateSection(section.id, patch)}
                               onDelete={() => handleDeleteSection(section.id)}
@@ -863,6 +895,7 @@ export function EditorClient() {
 export interface SortableSectionCardProps {
   section: SectionWithEntries;
   activeLang: string;
+  languages: CustomLanguage[];
   sensors: ReturnType<typeof useSensors>;
   onUpdate: (patch: Partial<SectionWithEntries>) => void;
   onDelete: () => void;
@@ -885,7 +918,7 @@ export interface SortableSectionCardProps {
 }
 
 export function SortableSectionCard(props: SortableSectionCardProps) {
-  const { section, sensors } = props;
+  const { section, sensors, languages } = props;
   const {
     attributes,
     listeners,
@@ -1051,6 +1084,7 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
                       entry={entry}
                       translation={translation}
                       activeLang={props.activeLang}
+                      languages={languages}
                       onUpdate={(patch) => props.onUpdateEntry(entry.id, patch)}
                       onDelete={() => props.onDeleteEntry(entry.id)}
                       onToggle={(enabled) => props.onToggleEntry(entry.id, enabled)}
@@ -1110,6 +1144,7 @@ export interface SortableEntryRowProps {
   entry: SectionWithEntries["entries"][0];
   translation?: SectionWithEntries["entries"][0]["translations"][0];
   activeLang: string;
+  languages: CustomLanguage[];
   onUpdate: (patch: Record<string, unknown>) => void;
   onDelete: () => void;
   onToggle: (enabled: boolean) => void;
@@ -1124,6 +1159,7 @@ export function SortableEntryRow({
   entry,
   translation,
   activeLang,
+  languages,
   onUpdate,
   onDelete,
   onToggle,
@@ -1242,24 +1278,23 @@ export function SortableEntryRow({
           </button>
         </div>
         {showLangEditor && (
-          <div className="mt-1 space-y-1 p-2 bg-white rounded border border-gray-200">
-            {LANGUAGES.map((lang) => {
+          <div className="mt-2 space-y-2 p-3 bg-white rounded-lg border border-gray-200">
+            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+              Translations
+            </div>
+            {languages.length === 0 && (
+              <p className="text-xs text-gray-400">Add a language first to create translations.</p>
+            )}
+            {languages.map((lang) => {
               const t = entry.translations.find((tr) => tr.language === lang.code);
               return (
-                <div key={lang.code} className="flex items-center gap-2 text-xs">
-                  <span className="w-20 font-medium">{lang.full}</span>
-                  <span className="text-gray-600 flex-1">
-                    {t ? `${t.title ?? ""} ${t.organization ?? ""}`.trim() : "\u2014"}
-                  </span>
-                  {t && (
-                    <button
-                      onClick={() => onDeleteTranslation(lang.code)}
-                      className="text-red-400 hover:text-red-600"
-                    >
-                      remove
-                    </button>
-                  )}
-                </div>
+                <TranslationEditorRow
+                  key={lang.code}
+                  lang={lang}
+                  translation={t}
+                  onSave={(fields) => onSaveTranslation(lang.code, fields)}
+                  onDelete={() => onDeleteTranslation(lang.code)}
+                />
               );
             })}
           </div>
@@ -1272,6 +1307,115 @@ export function SortableEntryRow({
       >
         del
       </button>
+    </div>
+  );
+}
+
+// ─── Translation Editor Row (editable per-language) ─────────────────────────
+
+interface TranslationEditorRowProps {
+  lang: CustomLanguage;
+  translation?: SectionWithEntries["entries"][0]["translations"][0];
+  onSave: (fields: { title: string; organization: string; description: string }) => void;
+  onDelete: () => void;
+}
+
+function TranslationEditorRow({ lang, translation, onSave, onDelete }: TranslationEditorRowProps) {
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(translation?.title ?? "");
+  const [organization, setOrganization] = useState(translation?.organization ?? "");
+  const [description, setDescription] = useState(translation?.description ?? "");
+
+  // Sync local state when translation changes externally
+  useEffect(() => {
+    if (!editing) {
+      setTitle(translation?.title ?? "");
+      setOrganization(translation?.organization ?? "");
+      setDescription(translation?.description ?? "");
+    }
+  }, [translation?.title, translation?.organization, translation?.description, editing]);
+
+  const handleSave = () => {
+    onSave({ title, organization, description });
+    setEditing(false);
+  };
+
+  const handleCancel = () => {
+    setTitle(translation?.title ?? "");
+    setOrganization(translation?.organization ?? "");
+    setDescription(translation?.description ?? "");
+    setEditing(false);
+  };
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-gray-50 hover:bg-gray-100 transition-colors">
+        <span className="text-xs font-bold text-teal-600 w-8">{lang.label}</span>
+        <div className="flex-1 text-xs text-gray-600 truncate">
+          {translation
+            ? [translation.title, translation.organization].filter(Boolean).join(" — ") || "Empty"
+            : <span className="text-gray-400 italic">Not translated</span>}
+        </div>
+        <button
+          onClick={() => setEditing(true)}
+          className="text-xs text-teal-600 hover:text-teal-700 font-medium"
+        >
+          {translation ? "Edit" : "Add"}
+        </button>
+        {translation && (
+          <button
+            onClick={onDelete}
+            className="text-xs text-red-400 hover:text-red-600"
+            title="Remove translation"
+          >
+            remove
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-2 py-2 rounded-md bg-white border border-teal-200 space-y-1.5">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-xs font-bold text-teal-600">{lang.label}</span>
+        <span className="text-xs text-gray-500">{lang.full}</span>
+      </div>
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Title"
+        className="w-full text-xs rounded border border-gray-300 px-2 py-1 bg-white focus:border-teal-500 focus:outline-none"
+      />
+      <input
+        type="text"
+        value={organization}
+        onChange={(e) => setOrganization(e.target.value)}
+        placeholder="Organization"
+        className="w-full text-xs rounded border border-gray-300 px-2 py-1 bg-white focus:border-teal-500 focus:outline-none"
+      />
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Description"
+        rows={2}
+        className="w-full text-xs rounded border border-gray-300 px-2 py-1 bg-white resize-y focus:border-teal-500 focus:outline-none"
+      />
+      <div className="flex gap-1.5 justify-end">
+        <button
+          onClick={handleCancel}
+          className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSave}
+          className="text-xs text-white bg-teal-600 hover:bg-teal-700 px-3 py-1 rounded font-medium"
+        >
+          Save
+        </button>
+      </div>
     </div>
   );
 }
