@@ -77,7 +77,7 @@ export function LanguageManager({
       {/* Language list */}
       <div className="space-y-1.5">
         {languages.length === 0 && !showAddForm && (
-          <p className="text-xs text-gray-400 py-2">
+          <p className="text-xs text-gray-400 py-2 italic">
             No languages yet. Add one to start translating.
           </p>
         )}
@@ -155,7 +155,7 @@ export function LanguageManager({
               </button>
             </div>
           </div>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-400 italic">
             Code is auto-generated from the name if left blank.
           </p>
         </div>

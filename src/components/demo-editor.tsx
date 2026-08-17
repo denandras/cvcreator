@@ -6,7 +6,6 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
-  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -106,7 +105,7 @@ export function DemoEditor() {
   const [profileTitle, setProfileTitle] = useState(() => loadDemoProfile().title);
   const [activeLang, setActiveLang] = useState("hu");
   const [languages, setLanguages] = useState<CustomLanguage[]>(DEMO_LANGUAGES);
-  const [viewMode, setViewMode] = useState<ViewMode>("edit");
+  const [viewMode, setViewMode] = useState<ViewMode>("split");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [designForm, setDesignForm] = useState<Partial<CVDesign>>(() => getDemoDesign());
   const [designDirty, setDesignDirty] = useState(false);
@@ -117,16 +116,8 @@ export function DemoEditor() {
   const [includePhotoInPdf, setIncludePhotoInPdf] = useState(true);
   const previewRef = useRef<HTMLDivElement>(null);
 
-  // On mobile, default sidebar to closed
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.innerWidth < 1024) {
-      setSidebarOpen(false);
-    }
-  }, []);
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -188,12 +179,15 @@ export function DemoEditor() {
 
   // ─── Photo handlers ────────────────────────────────────────────────────────
 
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
   const handlePhotoUpload = async (file: File) => {
+    setPhotoError(null);
     try {
       const stored = await setProfilePicture(file);
       setProfilePictureState(stored);
     } catch (err) {
-      console.error("Failed to upload photo:", err);
+      setPhotoError(err instanceof Error ? err.message : "Failed to upload photo");
     }
   };
 
@@ -472,19 +466,19 @@ export function DemoEditor() {
   const showPreview = viewMode === "preview" || viewMode === "split";
 
   return (
-    <div className="h-full bg-gray-100 flex flex-col overflow-hidden min-h-0">
+    <div className="h-full bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col overflow-hidden min-h-0">
       {/* Top toolbar */}
       <div className="bg-white border-b border-gray-200 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 sm:gap-4 flex-shrink-0 z-30">
-        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 min-w-0">
-          <h1 className="text-lg font-bold text-gray-900 truncate">CV Editor</h1>
-          <span className="text-xs text-amber-600 font-medium px-2 py-0.5 bg-amber-50 rounded flex-shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+          <h1 className="text-lg font-bold text-gray-900">CV Editor</h1>
+          <span className="text-xs text-amber-600 font-medium px-2 py-0.5 bg-amber-50 rounded">
             Demo Mode
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 overflow-x-auto scrollbar-hide">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
           {/* View mode toggle */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-0.5 flex-shrink-0">
+          <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
             {(["edit", "split", "preview"] as ViewMode[]).map((mode) => (
               <button
                 key={mode}
@@ -501,7 +495,7 @@ export function DemoEditor() {
           </div>
 
           {/* Language switcher — custom languages */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-0.5 flex-shrink-0">
+          <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
             {languages.map((lang) => (
               <button
                 key={lang.code}
@@ -524,7 +518,7 @@ export function DemoEditor() {
           {/* Design sidebar toggle */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex-shrink-0 ${
+            className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
               sidebarOpen
                 ? "bg-teal-50 text-teal-600"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -536,7 +530,7 @@ export function DemoEditor() {
           {/* Reset demo */}
           <button
             onClick={resetDemo}
-            className="px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors flex-shrink-0"
+            className="px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
           >
             <span className="hidden sm:inline">Reset Demo</span>
             <span className="sm:hidden">Reset</span>
@@ -546,7 +540,7 @@ export function DemoEditor() {
           <button
             onClick={handleExportPdf}
             disabled={pdfExporting || !sections.length}
-            className="px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 flex-shrink-0"
+            className="px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
           >
             {pdfExporting ? (
               <>
@@ -578,7 +572,7 @@ export function DemoEditor() {
               className="lg:hidden fixed inset-0 bg-black/30 z-40"
               onClick={() => setSidebarOpen(false)}
             />
-            <div className="w-full sm:w-72 flex-shrink-0 overflow-y-auto h-full absolute lg:relative z-50 lg:z-auto inset-y-0 left-0 lg:inset-auto">
+            <div className="w-72 flex-shrink-0 overflow-y-auto h-full absolute lg:relative z-50 lg:z-auto inset-y-0 left-0 lg:inset-auto">
               <DesignSidebar
                 design={designForm}
                 dirty={designDirty}
@@ -609,28 +603,28 @@ export function DemoEditor() {
                 {/* Profile info inputs */}
                 <div className="bg-white rounded-xl border border-gray-200 p-4">
                   <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                    Profile Header
+                    Your Profile
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <input
                       type="text"
                       value={profileName}
                       onChange={(e) => setProfileName(e.target.value)}
                       placeholder="Full name"
-                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"
+                      className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:border-teal-500 focus:outline-none"
                     />
                     <input
                       type="text"
                       value={profileTitle}
                       onChange={(e) => setProfileTitle(e.target.value)}
                       placeholder="Professional title"
-                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"
+                      className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:border-teal-500 focus:outline-none"
                     />
                   </div>
 
                   {/* Profile picture */}
                   <div className="mt-4 pt-4 border-t border-gray-100">
-                    <div className="flex items-start gap-4 flex-col sm:flex-row">
+                    <div className="flex items-start gap-4">
                       {profilePicture ? (
                         <img
                           src={profilePicture}
@@ -643,8 +637,8 @@ export function DemoEditor() {
                         </div>
                       )}
                       <div className="flex-1 space-y-2">
-                        <div className="flex gap-2 flex-wrap">
-                          <label className="cursor-pointer px-3 py-2 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
+                        <div className="flex gap-2">
+                          <label className="cursor-pointer px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
                             {profilePicture ? "Change photo" : "Upload photo"}
                             <input
                               type="file"
@@ -659,15 +653,20 @@ export function DemoEditor() {
                           {profilePicture && (
                             <button
                               onClick={handlePhotoRemove}
-                              className="px-3 py-2 text-xs font-medium rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
                             >
                               Remove
                             </button>
                           )}
                         </div>
-                        <p className="text-xs text-amber-600 bg-amber-50 rounded px-2 py-1">
+                        <p className="text-xs text-amber-600 bg-amber-50 rounded px-2 py-1 italic">
                           Photo stays in your browser only — not uploaded to any server.
                         </p>
+                        {photoError && (
+                          <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1">
+                            {photoError}
+                          </p>
+                        )}
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input
                             type="checkbox"
@@ -675,7 +674,7 @@ export function DemoEditor() {
                             onChange={(e) => setIncludePhotoInPdf(e.target.checked)}
                             className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
                           />
-                          <span className="text-xs text-gray-600">Include photo in exported PDF</span>
+                          <span className="text-xs text-gray-600 italic">Include photo in exported PDF</span>
                         </label>
                       </div>
                     </div>
@@ -737,9 +736,12 @@ export function DemoEditor() {
                 {/* Add section */}
                 <button
                   onClick={handleAddSection}
-                  className="w-full rounded-xl border-2 border-dashed border-gray-300 py-4 text-gray-500 hover:border-teal-400 hover:text-teal-600 transition-colors"
+                  className="w-full rounded-xl border-2 border-dashed border-teal-300 bg-gradient-to-b from-teal-50/50 to-teal-50/20 py-4 text-teal-700 font-semibold hover:from-teal-50 hover:to-teal-100 hover:border-teal-500 transition-all flex items-center justify-center gap-1.5 shadow-sm"
                 >
-                  + Add Section
+                  <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
+                  </svg>
+                  Add Section
                 </button>
               </div>
             </div>

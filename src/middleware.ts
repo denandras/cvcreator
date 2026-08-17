@@ -32,7 +32,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getSession();
 
   if (path.startsWith("/editor") && !session) {
-    const redirectUrl = new URL("/", request.url);
+    const redirectUrl = new URL("/signin", request.url);
     return NextResponse.redirect(redirectUrl);
   }
 

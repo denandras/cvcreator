@@ -19,7 +19,7 @@ function demoId(prefix: string): string {
 }
 
 function makeEntry(
-  year: number,
+  year: number | null,
   translations: { lang: string; title: string; organization: string | null; description: string | null }[]
 ): EntryWithTranslations {
   const entryId = demoId("entry");
@@ -117,13 +117,13 @@ export function getDemoSections(): SectionWithEntries[] {
       ]),
     ]),
     makeSection("Készségek", "skills", 2, [
-      makeEntry(0, [
+      makeEntry(null, [
         { lang: "hu", title: "AutoCAD, Revit, ArchiCAD, SketchUp", organization: null, description: "Tervezőszoftverek haladó szinten." },
         { lang: "en", title: "AutoCAD, Revit, ArchiCAD, SketchUp", organization: null, description: "Advanced level design software." },
         { lang: "de", title: "AutoCAD, Revit, ArchiCAD, SketchUp", organization: null, description: "Fortgeschrittene Design-Software." },
         { lang: "fr", title: "AutoCAD, Revit, ArchiCAD, SketchUp", organization: null, description: "Logiciels de conception de niveau avancé." },
       ]),
-      makeEntry(0, [
+      makeEntry(null, [
         { lang: "hu", title: "Projektmenedzsment, csapatvezetés", organization: null, description: "Agile és waterfall módszertan, 12 fős csapat irányítása." },
         { lang: "en", title: "Project management, team leadership", organization: null, description: "Agile and waterfall methodology, leading a 12-person team." },
         { lang: "de", title: "Projektmanagement, Teamleitung", organization: null, description: "Agile und Wasserfall-Methodik, Leitung eines 12-köpfigen Teams." },

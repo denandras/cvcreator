@@ -62,21 +62,24 @@ export function DesignSidebar({
           {onSidebarClose && (
             <button
               onClick={onSidebarClose}
-              className="text-gray-400 hover:text-gray-700 text-lg leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
+              className="text-gray-400 hover:text-gray-700 p-1 rounded hover:bg-gray-100 transition-colors"
+              title="Close sidebar"
             >
-              x
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
             </button>
           )}
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-200 overflow-x-auto">
+      <div className="flex border-b border-gray-200">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 px-2 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${
+            className={`flex-1 px-2 py-2.5 text-xs font-medium transition-colors ${
               activeTab === tab.id
                 ? "text-teal-600 border-b-2 border-teal-600"
                 : "text-gray-500 hover:text-gray-700 border-b-2 border-transparent"
@@ -307,6 +310,45 @@ export function DesignSidebar({
 
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                Profile Image
+              </label>
+              <div className="space-y-3">
+                {/* Rim toggle */}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={(design.custom_config?.profileRim as boolean) ?? true}
+                    onChange={(e) => onChange("custom_config", { ...(design.custom_config ?? {}), profileRim: e.target.checked })}
+                    className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                  />
+                  <span className="text-xs text-gray-600">Show rim/border around photo</span>
+                </label>
+                {/* Roundedness slider */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Corner roundness
+                    <span className="ml-1 text-teal-600">
+                      {(design.custom_config?.profileRadius as number) ?? 48}px
+                    </span>
+                  </label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={48}
+                    value={(design.custom_config?.profileRadius as number) ?? 48}
+                    onChange={(e) => onChange("custom_config", { ...(design.custom_config ?? {}), profileRadius: parseInt(e.target.value) })}
+                    className="w-full accent-teal-600"
+                  />
+                  <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+                    <span>Square</span>
+                    <span>Circle</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
                 Page Management
               </label>
               <div className="space-y-2">
@@ -341,7 +383,7 @@ export function DesignSidebar({
         <button
           onClick={onSave}
           disabled={!dirty || saving}
-          className="w-full rounded-lg bg-teal-600 px-4 py-3 text-white text-sm font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full rounded-lg bg-teal-600 px-4 py-2.5 text-white text-sm font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {saving ? "Saving..." : "Save Design"}
         </button>

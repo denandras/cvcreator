@@ -56,6 +56,60 @@ export const FONT_OPTIONS: FontOption[] = [
     stack: "'Noto Sans', system-ui, sans-serif",
     preview: "Aa Bb Cc 123",
   },
+  {
+    value: "poppins",
+    label: "Poppins",
+    stack: "'Poppins', system-ui, sans-serif",
+    preview: "Aa Bb Cc 123",
+  },
+  {
+    value: "montserrat",
+    label: "Montserrat",
+    stack: "'Montserrat', system-ui, sans-serif",
+    preview: "Aa Bb Cc 123",
+  },
+  {
+    value: "roboto",
+    label: "Roboto",
+    stack: "'Roboto', system-ui, sans-serif",
+    preview: "Aa Bb Cc 123",
+  },
+  {
+    value: "open-sans",
+    label: "Open Sans",
+    stack: "'Open Sans', system-ui, sans-serif",
+    preview: "Aa Bb Cc 123",
+  },
+  {
+    value: "playfair",
+    label: "Playfair Display",
+    stack: "'Playfair Display', Georgia, serif",
+    preview: "Aa Bb Cc 123",
+  },
+  {
+    value: "crimson",
+    label: "Crimson Pro",
+    stack: "'Crimson Pro', Georgia, serif",
+    preview: "Aa Bb Cc 123",
+  },
+  {
+    value: "raleway",
+    label: "Raleway",
+    stack: "'Raleway', system-ui, sans-serif",
+    preview: "Aa Bb Cc 123",
+  },
+  {
+    value: "karla",
+    label: "Karla",
+    stack: "'Karla', system-ui, sans-serif",
+    preview: "Aa Bb Cc 123",
+  },
+  {
+    value: "ibm-plex",
+    label: "IBM Plex Sans",
+    stack: "'IBM Plex Sans', system-ui, sans-serif",
+    preview: "Aa Bb Cc 123",
+  },
 ];
 
 export function getFontStack(value: string): string {

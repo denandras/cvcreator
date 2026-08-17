@@ -7,6 +7,7 @@
  */
 
 const STORAGE_KEY = "cv:profile-picture";
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
 
 /**
  * Read the stored profile picture as a data URL (or null if not set).
@@ -31,6 +32,9 @@ export async function setProfilePicture(input: File | string): Promise<string> {
   if (typeof input === "string") {
     dataUrl = input;
   } else {
+    if (input.size > MAX_FILE_SIZE) {
+      throw new Error(`Image is too large. Maximum size is 20 MB. Your file is ${(input.size / 1024 / 1024).toFixed(1)} MB.`);
+    }
     dataUrl = await fileToDataUrl(input);
   }
 
