@@ -1068,7 +1068,7 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
             type="text"
             value={section.title}
             onChange={(e) => props.onUpdate({ title: e.target.value })}
-            onBlur={() => props.onUpdate({ title: section.title })}
+            onBlur={() => props.onUpdate({ title: section.title.trim() })}
             className="flex-1 min-w-[120px] font-semibold text-gray-800 bg-transparent border-b border-transparent focus:border-teal-500 focus:outline-none px-1 py-1 text-sm"
           />
 
@@ -1286,7 +1286,11 @@ export function SortableEntryRow({
   }, [translation?.title, translation?.organization, translation?.description]);
 
   const handleSaveLang = () => {
-    onSaveTranslation(activeLang, { title, organization, description });
+    onSaveTranslation(activeLang, {
+      title: title.trim(),
+      organization: organization.trim(),
+      description: description.replace(/\n{3,}/g, "\n\n").trim(),
+    });
   };
 
   return (
@@ -1433,7 +1437,11 @@ function TranslationEditorRow({ lang, translation, onSave, onDelete }: Translati
   }, [translation?.title, translation?.organization, translation?.description, editing]);
 
   const handleSave = () => {
-    onSave({ title, organization, description });
+    onSave({
+      title: title.trim(),
+      organization: organization.trim(),
+      description: description.replace(/\n{3,}/g, "\n\n").trim(),
+    });
     setEditing(false);
   };
 

@@ -130,11 +130,26 @@ export function CVPreview({
     }
   };
 
+  /**
+   * Sanitize text for PDF-safe rendering:
+   * - Trim leading/trailing whitespace (removes accidental newlines at edges)
+   * - Collapse 3+ consecutive newlines into 2 (preserves intentional paragraph
+   *   breaks, removes accidental extra blank lines from textarea input)
+   * - Collapse runs of spaces/tabs into a single space (prevents wide gaps
+   *   from indentation or copy-paste)
+   * Does NOT remove intentional single newlines (user pressed Enter once).
+   */
+  const sanitizeText = (text: string): string =>
+    text
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+
   const renderEntry = (entry: SectionWithEntries["entries"][0]) => {
     const translation = entry.translations.find((t) => t.language === activeLang);
-    const title = translation?.title ?? "";
-    const organization = translation?.organization ?? "";
-    const description = translation?.description ?? "";
+    const title = sanitizeText(translation?.title ?? "");
+    const organization = sanitizeText(translation?.organization ?? "");
+    const description = sanitizeText(translation?.description ?? "");
     const year = entry.year;
 
     return (
@@ -158,7 +173,7 @@ export function CVPreview({
           </div>
         )}
         {description && (
-          <div className="text-sm italic mt-1" style={{ color: palette.text, whiteSpace: "pre-wrap" }}>
+          <div className="text-sm italic mt-1" style={{ color: palette.text, whiteSpace: "pre-line" }}>
             {description}
           </div>
         )}
@@ -170,7 +185,7 @@ export function CVPreview({
     const twoCol = isTwoColumn(section);
     return (
       <div key={section.id} style={{ marginBottom: `${spacing.section}px`, breakInside: "avoid" }}>
-        {renderHeading(section.title)}
+        {renderHeading(sanitizeText(section.title))}
         {twoCol ? (
           (() => {
             const mid = Math.ceil(section.entries.length / 2);
@@ -192,7 +207,9 @@ export function CVPreview({
 
   // Profile header renderer
   const renderProfileHeader = () => {
-    if (!profileName && !profileTitle && !profilePicture) return null;
+    const safeName = sanitizeText(profileName);
+    const safeTitle = sanitizeText(profileTitle);
+    if (!safeName && !safeTitle && !profilePicture) return null;
     return (
       <>
         <div style={{ marginBottom: `${spacing.section}px` }} className="flex items-center gap-4">
@@ -213,7 +230,7 @@ export function CVPreview({
             />
           )}
           <div style={{ textAlign: profilePicture ? "left" : "center", flex: 1 }}>
-            {profileName && (
+            {safeName && (
               <h1
                 className="font-bold"
                 style={{
@@ -223,10 +240,10 @@ export function CVPreview({
                   letterSpacing: "-0.02em",
                 }}
               >
-                {profileName}
+                {safeName}
               </h1>
             )}
-            {profileTitle && (
+            {safeTitle && (
               <div
                 className="uppercase tracking-wider"
                 style={{
@@ -236,7 +253,7 @@ export function CVPreview({
                   letterSpacing: "0.1em",
                 }}
               >
-                {profileTitle}
+                {safeTitle}
               </div>
             )}
           </div>
@@ -249,7 +266,7 @@ export function CVPreview({
             />
           )}
         </div>
-        {profilePicture && (profileName || profileTitle) && (
+        {profilePicture && (safeName || safeTitle) && (
           <div
             style={{
               marginBottom: `${spacing.section}px`,
