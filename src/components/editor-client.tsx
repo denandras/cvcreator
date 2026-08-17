@@ -335,6 +335,7 @@ export function EditorClient() {
   };
 
   const handleDeleteEntry = async (entryId: string, sectionId: string) => {
+    if (!confirm("Delete this entry?")) return;
     try {
       await deleteEntry(entryId);
       setSections((prev) =>
@@ -1106,10 +1107,11 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
 
             <button
               onClick={props.onDelete}
-              className="text-red-400 hover:text-red-600 hover:bg-red-50 px-1.5 py-1 text-sm rounded transition-colors"
+              className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 md:p-1.5 text-sm rounded-lg md:rounded transition-colors touch-target"
               title="Delete section"
+              aria-label="Delete section"
             >
-              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <svg className="w-5 h-5 md:w-4 md:h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
             </button>
@@ -1394,10 +1396,11 @@ export function SortableEntryRow({
 
       <button
         onClick={onDelete}
-        className="text-red-400 hover:text-red-600 mt-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+        className="text-red-400 hover:text-red-600 mt-1 p-2 md:p-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0 rounded-lg md:rounded-none hover:bg-red-50 md:hover:bg-transparent touch-target"
         title="Delete entry"
+        aria-label="Delete entry"
       >
-        <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+        <svg className="w-5 h-5 md:w-4 md:h-4" viewBox="0 0 20 20" fill="currentColor">
           <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
         </svg>
       </button>

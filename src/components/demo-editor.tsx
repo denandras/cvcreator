@@ -331,6 +331,7 @@ export function DemoEditor() {
   };
 
   const handleDeleteEntry = (entryId: string, sectionId: string) => {
+    if (!confirm("Delete this entry?")) return;
     setSections((prev) =>
       prev.map((s) =>
         s.id === sectionId
