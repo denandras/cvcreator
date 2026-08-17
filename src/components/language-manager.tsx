@@ -64,7 +64,7 @@ export function LanguageManager({
         {!showAddForm && (
           <button
             onClick={() => setShowAddForm(true)}
-            className="text-xs font-medium text-teal-600 hover:text-teal-700 flex items-center gap-1"
+            className="text-xs font-medium text-teal-600 hover:text-teal-700 flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-teal-50 transition-colors"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
               <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
@@ -99,7 +99,7 @@ export function LanguageManager({
             </button>
             <button
               onClick={() => handleRemove(lang.code)}
-              className="text-gray-300 hover:text-red-500 transition-colors"
+              className="text-gray-300 hover:text-red-500 transition-colors p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg hover:bg-red-50"
               title={`Remove ${lang.full}`}
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -126,14 +126,14 @@ export function LanguageManager({
             className="w-full text-sm rounded-lg border border-gray-300 px-3 py-2 bg-white focus:border-teal-500 focus:ring-1 focus:ring-teal-500 focus:outline-none"
             autoFocus
           />
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="text"
               value={newLangCode}
               onChange={(e) => setNewLangCode(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Code (optional, e.g. es)"
-              className="w-32 text-sm rounded-lg border border-gray-300 px-3 py-2 bg-white focus:border-teal-500 focus:ring-1 focus:ring-teal-500 focus:outline-none"
+              className="w-full sm:w-32 text-sm rounded-lg border border-gray-300 px-3 py-2 bg-white focus:border-teal-500 focus:ring-1 focus:ring-teal-500 focus:outline-none"
             />
             <div className="flex gap-1.5 flex-1 justify-end">
               <button

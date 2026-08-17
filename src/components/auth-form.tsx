@@ -67,7 +67,7 @@ export function AuthForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-teal-600 px-4 py-2 text-white font-medium hover:bg-teal-700 disabled:opacity-50 transition-colors"
+            className="w-full rounded-lg bg-teal-600 px-4 py-3 text-white font-medium hover:bg-teal-700 disabled:opacity-50 transition-colors"
           >
             {loading ? "Loading..." : mode === "signin" ? "Sign In" : "Sign Up"}
           </button>
@@ -91,7 +91,7 @@ export function AuthForm() {
           <p className="text-xs text-gray-500 mb-2">Just want to look around?</p>
           <Link
             href="/demo"
-            className="inline-block rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            className="inline-block rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
             Try Demo Mode
           </Link>

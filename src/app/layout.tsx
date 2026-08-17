@@ -1,10 +1,17 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 
 export const metadata: Metadata = {
   title: "CV Creator",
   description: "Create polished, modern CVs with ease.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
 };
 
 export default function RootLayout({
@@ -22,7 +29,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased bg-gray-50 text-gray-900 h-screen overflow-hidden">
+      <body className="antialiased bg-gray-50 text-gray-900 h-screen h-[100dvh] overflow-hidden overscroll-none">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

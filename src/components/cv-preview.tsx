@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useEffect, useState } from "react";
 import type { SectionWithEntries, CVDesign } from "@/types/database";
 import {
   getFontStack,
@@ -31,6 +32,28 @@ export function CVPreview({
   showPageBreaks = false,
   profilePicture = null,
 }: CVPreviewProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  // Auto-scale to fit container width on small screens
+  useEffect(() => {
+    const computeScale = () => {
+      const el = containerRef.current;
+      if (!el) return;
+      const containerWidth = el.clientWidth;
+      // Only scale down if container is narrower than the page
+      if (containerWidth < PAGE_WIDTH + 32) {
+        setScale((containerWidth - 32) / PAGE_WIDTH);
+      } else {
+        setScale(1);
+      }
+    };
+    computeScale();
+    const observer = new ResizeObserver(computeScale);
+    if (containerRef.current) observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
   const template = getTemplate(design.template ?? "clean");
   const palette = getPalette(
     (design.custom_config?.paletteId as string) ?? template.defaultPalette
@@ -188,11 +211,18 @@ export function CVPreview({
   };
 
   return (
-    <div className="flex flex-col items-center gap-4 w-full overflow-x-auto">
+    <div ref={containerRef} className="flex flex-col items-center gap-4 w-full overflow-x-hidden">
       {pages.map((pageSections, pageIdx) => (
         <div
           key={pageIdx}
-          className="bg-white shadow-lg relative flex-shrink-0"
+          className="flex-shrink-0"
+          style={{
+            width: `${PAGE_WIDTH * scale}px`,
+            height: `${PAGE_HEIGHT * scale}px`,
+          }}
+        >
+        <div
+          className="bg-white shadow-lg relative"
           style={{
             width: `${PAGE_WIDTH}px`,
             minHeight: `${PAGE_HEIGHT}px`,
@@ -202,6 +232,8 @@ export function CVPreview({
             backgroundColor: palette.bg,
             borderRadius: `${Math.min(borderRadius, 4)}px`,
             fontSize: "14px",
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
           }}
         >
           {/* Profile header — only on first page */}
@@ -280,6 +312,7 @@ export function CVPreview({
               <span className="absolute -top-5 right-2 text-xs text-red-400">Page break</span>
             </div>
           )}
+        </div>
         </div>
       ))}
     </div>

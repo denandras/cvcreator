@@ -38,3 +38,70 @@
     background-clip: padding-box;
   }
 }
+
+/* ─── Mobile-friendly fixes ────────────────────────────────────────────────── */
+@layer base {
+  /* Prevent horizontal scroll on mobile */
+  html, body {
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Ensure inputs don't trigger zoom on iOS (font-size >= 16px) */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  @media (min-width: 640px) {
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    input[type="tel"],
+    input[type="url"],
+    input[type="search"],
+    textarea,
+    select {
+      font-size: 14px;
+    }
+  }
+}
+
+@layer utilities {
+  /* Show hidden-on-hover elements on touch devices (no hover) */
+  @media (hover: none) {
+    .touch-show {
+      opacity: 1 !important;
+    }
+  }
+
+  /* Prevent text selection on drag handles */
+  .no-select {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* Minimum touch target size */
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Hide scrollbar for horizontal scroll areas (toolbar) */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}

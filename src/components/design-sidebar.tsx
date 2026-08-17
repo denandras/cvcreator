@@ -62,7 +62,7 @@ export function DesignSidebar({
           {onSidebarClose && (
             <button
               onClick={onSidebarClose}
-              className="text-gray-400 hover:text-gray-700 text-lg leading-none"
+              className="text-gray-400 hover:text-gray-700 text-lg leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
             >
               x
             </button>
@@ -71,12 +71,12 @@ export function DesignSidebar({
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-200">
+      <div className="flex border-b border-gray-200 overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 px-2 py-2.5 text-xs font-medium transition-colors ${
+            className={`flex-1 px-2 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${
               activeTab === tab.id
                 ? "text-teal-600 border-b-2 border-teal-600"
                 : "text-gray-500 hover:text-gray-700 border-b-2 border-transparent"
@@ -341,7 +341,7 @@ export function DesignSidebar({
         <button
           onClick={onSave}
           disabled={!dirty || saving}
-          className="w-full rounded-lg bg-teal-600 px-4 py-2.5 text-white text-sm font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full rounded-lg bg-teal-600 px-4 py-3 text-white text-sm font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {saving ? "Saving..." : "Save Design"}
         </button>

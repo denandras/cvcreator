@@ -6,6 +6,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -113,9 +114,17 @@ export function EditorClient() {
   const [pdfExporting, setPdfExporting] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
 
-  // DnD sensors
+  // On mobile, default sidebar to closed
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  }, []);
+
+  // DnD sensors — TouchSensor for mobile, PointerSensor for desktop
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -590,14 +599,14 @@ export function EditorClient() {
     <div className="h-full bg-gray-100 flex flex-col overflow-hidden min-h-0">
       {/* Top toolbar */}
       <div className="bg-white border-b border-gray-200 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 sm:gap-4 flex-shrink-0 z-30">
-        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-          <h1 className="text-lg font-bold text-gray-900">CV Editor</h1>
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 min-w-0">
+          <h1 className="text-lg font-bold text-gray-900 truncate">CV Editor</h1>
           <span className="text-xs text-gray-400 hidden md:inline">{user.email}</span>
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 overflow-x-auto scrollbar-hide">
           {/* View mode toggle */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+          <div className="flex items-center bg-gray-100 rounded-lg p-0.5 flex-shrink-0">
             {(["edit", "split", "preview"] as ViewMode[]).map((mode) => (
               <button
                 key={mode}
@@ -614,7 +623,7 @@ export function EditorClient() {
           </div>
 
           {/* Language switcher — custom languages */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+          <div className="flex items-center bg-gray-100 rounded-lg p-0.5 flex-shrink-0">
             {languages.map((lang) => (
               <button
                 key={lang.code}
@@ -637,7 +646,7 @@ export function EditorClient() {
           {/* Design sidebar toggle */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+            className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex-shrink-0 ${
               sidebarOpen
                 ? "bg-teal-50 text-teal-600"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -650,7 +659,7 @@ export function EditorClient() {
           <button
             onClick={handleExportPdf}
             disabled={pdfExporting || !sections.length}
-            className="px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
+            className="px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 flex-shrink-0"
           >
             {pdfExporting ? (
               <>
@@ -672,7 +681,7 @@ export function EditorClient() {
 
           <button
             onClick={() => signOut()}
-            className="text-xs text-gray-400 hover:text-gray-700 px-1.5 sm:px-2"
+            className="text-xs text-gray-400 hover:text-gray-700 px-1.5 sm:px-2 flex-shrink-0"
           >
             <span className="hidden sm:inline">Sign Out</span>
             <span className="sm:hidden">⎋</span>
@@ -684,7 +693,7 @@ export function EditorClient() {
       {error && (
         <div className="mx-3 sm:mx-4 mt-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm flex justify-between items-center flex-shrink-0">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-900 font-bold flex-shrink-0 ml-2">
+          <button onClick={() => setError(null)} className="text-red-900 font-bold flex-shrink-0 ml-2 w-7 h-7 flex items-center justify-center rounded hover:bg-red-100">
             x
           </button>
         </div>
@@ -700,7 +709,7 @@ export function EditorClient() {
               className="lg:hidden fixed inset-0 bg-black/30 z-40"
               onClick={() => setSidebarOpen(false)}
             />
-            <div className="w-72 flex-shrink-0 overflow-y-auto h-full absolute lg:relative z-50 lg:z-auto inset-y-0 left-0 lg:inset-auto">
+            <div className="w-full sm:w-72 flex-shrink-0 overflow-y-auto h-full absolute lg:relative z-50 lg:z-auto inset-y-0 left-0 lg:inset-auto">
               <DesignSidebar
                 design={designForm}
                 dirty={designDirty}
@@ -739,7 +748,7 @@ export function EditorClient() {
                       <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
                         Profile Header
                       </div>
-                      <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                         <input
                           type="text"
                           value={profileName}
@@ -758,7 +767,7 @@ export function EditorClient() {
 
                       {/* Profile picture upload */}
                       <div className="border-t border-gray-100 pt-3">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-col sm:flex-row">
                           {profilePicture ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
@@ -783,14 +792,14 @@ export function EditorClient() {
                                 }}
                                 className="hidden"
                               />
-                              <span className="cursor-pointer text-xs font-medium text-teal-600 hover:text-teal-700 px-3 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 transition-colors inline-block">
+                              <span className="cursor-pointer text-xs font-medium text-teal-600 hover:text-teal-700 px-3 py-2 rounded-lg bg-teal-50 hover:bg-teal-100 transition-colors inline-block">
                                 {profilePicture ? "Change photo" : "Upload photo"}
                               </span>
                             </label>
                             {profilePicture && (
                               <button
                                 onClick={handlePhotoRemove}
-                                className="block text-xs text-red-500 hover:text-red-700"
+                                className="block text-xs text-red-500 hover:text-red-700 px-3 py-1.5"
                               >
                                 Remove photo
                               </button>
@@ -857,6 +866,7 @@ export function EditorClient() {
                               onDragEndEntry={(event) => handleDragEndEntry(section.id, event)}
                               onLayoutChange={(key, val) => handleSectionLayoutChange(section.id, key, val)}
                               onAddPageBreak={() => handleAddPageBreak(sectionIdx)}
+                              onRemovePageBreak={() => handleRemovePageBreak(sectionIdx + 1)}
                               hasPageBreakAfter={pageBreaks.includes(sectionIdx + 1)}
                             />
                           ))}
@@ -867,7 +877,7 @@ export function EditorClient() {
                     {/* Add section + page break */}
                     <button
                       onClick={handleAddSection}
-                      className="w-full rounded-xl border-2 border-dashed border-gray-300 py-3 text-gray-500 hover:border-teal-400 hover:text-teal-600 transition-colors"
+                      className="w-full rounded-xl border-2 border-dashed border-gray-300 py-4 text-gray-500 hover:border-teal-400 hover:text-teal-600 transition-colors"
                     >
                       + Add Section
                     </button>
@@ -930,6 +940,7 @@ export interface SortableSectionCardProps {
   onDragEndEntry: (event: DragEndEvent) => void;
   onLayoutChange: (key: string, value: unknown) => void;
   onAddPageBreak: () => void;
+  onRemovePageBreak: () => void;
   hasPageBreakAfter: boolean;
 }
 
@@ -968,7 +979,7 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
           <button
             {...attributes}
             {...listeners}
-            className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 px-1 py-2"
+            className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 px-1 py-2 no-select touch-target flex-shrink-0"
             title="Drag to reorder"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
@@ -1005,7 +1016,7 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
             <select
               value={section.section_type}
               onChange={(e) => props.onUpdate({ section_type: e.target.value as SectionType })}
-              className="text-xs rounded-md border border-gray-300 px-2 py-1 bg-white text-gray-600"
+              className="text-xs rounded-md border border-gray-300 px-2 py-1.5 bg-white text-gray-600"
             >
               {SECTION_TYPES.map((t) => (
                 <option key={t} value={t}>{t}</option>
@@ -1015,7 +1026,7 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
             <select
               value={section.entry_sort_mode}
               onChange={(e) => props.onSortModeChange(e.target.value as EntrySortMode)}
-              className="text-xs rounded-md border border-gray-300 px-2 py-1 bg-white text-gray-600"
+              className="text-xs rounded-md border border-gray-300 px-2 py-1.5 bg-white text-gray-600"
             >
               {SORT_MODES.map((m) => (
                 <option key={m} value={m}>{m.replace("_", " ")}</option>
@@ -1027,14 +1038,14 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
           <div className="flex items-center gap-1 flex-shrink-0">
             <button
               onClick={() => setExpanded(!expanded)}
-              className="text-gray-400 hover:text-gray-700 px-1.5 py-1"
+              className="text-gray-400 hover:text-gray-700 px-2 py-1.5 text-base min-w-[36px] min-h-[36px] flex items-center justify-center"
             >
               {expanded ? "\u2212" : "+"}
             </button>
 
             <button
               onClick={props.onDelete}
-              className="text-red-400 hover:text-red-600 px-1 py-1 text-xs"
+              className="text-red-400 hover:text-red-600 px-2 py-1.5 text-xs min-h-[36px] flex items-center"
             >
               del
             </button>
@@ -1051,7 +1062,7 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
                   <button
                     key={c}
                     onClick={() => props.onLayoutChange("columns", c)}
-                    className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                    className={`px-2 py-1 text-xs rounded transition-colors ${
                       currentColumns === c
                         ? "bg-white text-teal-600 shadow-sm"
                         : "text-gray-500 hover:text-gray-700"
@@ -1116,7 +1127,7 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
 
             <button
               onClick={props.onAddEntry}
-              className="w-full text-xs text-gray-400 hover:text-teal-600 py-2 border border-dashed border-gray-200 rounded-lg hover:border-teal-300 transition-colors"
+              className="w-full text-xs text-gray-400 hover:text-teal-600 py-2.5 border border-dashed border-gray-200 rounded-lg hover:border-teal-300 transition-colors"
             >
               + Add Entry
             </button>
@@ -1128,15 +1139,12 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
       {props.hasPageBreakAfter ? (
         <div className="flex items-center justify-center py-2">
           <div className="flex-1 border-t-2 border-dashed border-red-300" />
-          <button
-            onClick={() => {}}
-            className="mx-2 text-xs text-red-400 font-medium"
-          >
+          <span className="mx-2 text-xs text-red-400 font-medium px-2 py-1">
             Page break
-          </button>
+          </span>
           <button
-            onClick={() => {}}
-            className="text-xs text-red-400 hover:text-red-600 mx-1"
+            onClick={props.onRemovePageBreak}
+            className="text-xs text-red-400 hover:text-red-600 mx-1 px-2 py-1 min-h-[32px]"
           >
             remove
           </button>
@@ -1146,7 +1154,7 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
         <div className="flex justify-center -my-1 relative z-10">
           <button
             onClick={props.onAddPageBreak}
-            className="text-xs text-gray-300 hover:text-red-400 opacity-0 hover:opacity-100 transition-opacity py-0.5"
+            className="text-xs text-gray-300 hover:text-red-400 opacity-0 hover:opacity-100 touch-show transition-opacity py-1 px-2"
           >
             + page break
           </button>
@@ -1226,7 +1234,7 @@ export function SortableEntryRow({
       <button
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 mt-1 flex-shrink-0"
+        className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 mt-1 flex-shrink-0 no-select touch-target"
         title="Drag to reorder"
       >
         <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
@@ -1248,7 +1256,7 @@ export function SortableEntryRow({
       />
 
       <div className="flex-1 min-w-0 space-y-1">
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-col sm:flex-row">
           <input
             type="number"
             value={entry.year ?? ""}
@@ -1257,7 +1265,7 @@ export function SortableEntryRow({
               onUpdate({ year });
             }}
             placeholder="Year"
-            className="w-20 text-sm rounded border border-gray-300 px-2 py-1 bg-white flex-shrink-0"
+            className="w-full sm:w-20 text-sm rounded border border-gray-300 px-2 py-1 bg-white flex-shrink-0"
           />
           <input
             type="text"
@@ -1265,7 +1273,7 @@ export function SortableEntryRow({
             onChange={(e) => setTitle(e.target.value)}
             onBlur={handleSaveLang}
             placeholder="Title"
-            className="flex-1 min-w-[100px] text-sm rounded border border-gray-300 px-2 py-1 bg-white"
+            className="flex-1 min-w-0 text-sm rounded border border-gray-300 px-2 py-1 bg-white"
           />
           <input
             type="text"
@@ -1273,7 +1281,7 @@ export function SortableEntryRow({
             onChange={(e) => setOrganization(e.target.value)}
             onBlur={handleSaveLang}
             placeholder="Organization"
-            className="flex-1 min-w-[100px] text-sm rounded border border-gray-300 px-2 py-1 bg-white"
+            className="flex-1 min-w-0 text-sm rounded border border-gray-300 px-2 py-1 bg-white"
           />
         </div>
         <textarea
@@ -1284,13 +1292,13 @@ export function SortableEntryRow({
           rows={2}
           className="w-full text-sm rounded border border-gray-300 px-2 py-1 bg-white resize-y"
         />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-gray-400">
             Lang: {activeLang} ({entry.translations.length} translations)
           </span>
           <button
             onClick={() => setShowLangEditor(!showLangEditor)}
-            className="text-xs text-teal-500 hover:underline"
+            className="text-xs text-teal-500 hover:underline px-1.5 py-1 min-h-[32px]"
           >
             {showLangEditor ? "Hide" : "Manage translations"}
           </button>
@@ -1321,7 +1329,7 @@ export function SortableEntryRow({
 
       <button
         onClick={onDelete}
-        className="text-red-400 hover:text-red-600 text-sm px-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="text-red-400 hover:text-red-600 text-sm px-1 mt-1 opacity-0 group-hover:opacity-100 touch-show transition-opacity flex-shrink-0"
       >
         del
       </button>
@@ -1368,22 +1376,22 @@ function TranslationEditorRow({ lang, translation, onSave, onDelete }: Translati
   if (!editing) {
     return (
       <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-gray-50 hover:bg-gray-100 transition-colors">
-        <span className="text-xs font-bold text-teal-600 w-8">{lang.label}</span>
-        <div className="flex-1 text-xs text-gray-600 truncate">
+        <span className="text-xs font-bold text-teal-600 w-8 flex-shrink-0">{lang.label}</span>
+        <div className="flex-1 text-xs text-gray-600 truncate min-w-0">
           {translation
             ? [translation.title, translation.organization].filter(Boolean).join(" — ") || "Empty"
             : <span className="text-gray-400 italic">Not translated</span>}
         </div>
         <button
           onClick={() => setEditing(true)}
-          className="text-xs text-teal-600 hover:text-teal-700 font-medium"
+          className="text-xs text-teal-600 hover:text-teal-700 font-medium px-2 py-1.5 min-h-[32px] rounded hover:bg-teal-50 flex-shrink-0"
         >
           {translation ? "Edit" : "Add"}
         </button>
         {translation && (
           <button
             onClick={onDelete}
-            className="text-xs text-red-400 hover:text-red-600"
+            className="text-xs text-red-400 hover:text-red-600 px-2 py-1.5 min-h-[32px] rounded hover:bg-red-50 flex-shrink-0"
             title="Remove translation"
           >
             remove
@@ -1423,13 +1431,13 @@ function TranslationEditorRow({ lang, translation, onSave, onDelete }: Translati
       <div className="flex gap-1.5 justify-end">
         <button
           onClick={handleCancel}
-          className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100"
+          className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5 min-h-[36px] rounded hover:bg-gray-100"
         >
           Cancel
         </button>
         <button
           onClick={handleSave}
-          className="text-xs text-white bg-teal-600 hover:bg-teal-700 px-3 py-1 rounded font-medium"
+          className="text-xs text-white bg-teal-600 hover:bg-teal-700 px-4 py-1.5 min-h-[36px] rounded font-medium"
         >
           Save
         </button>
