@@ -6,6 +6,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -94,6 +95,11 @@ export function EditorClient() {
   // Design sidebar
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+  // On mobile, default sidebar to closed
+  useEffect(() => {
+    if (window.innerWidth < 1024) setSidebarOpen(false);
+  }, []);
+
   // Design form state (explicit save)
   const [designForm, setDesignForm] = useState<Partial<CVDesign>>({});
   const [designDirty, setDesignDirty] = useState(false);
@@ -116,6 +122,7 @@ export function EditorClient() {
   // DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
