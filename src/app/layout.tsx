@@ -22,7 +22,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased bg-gray-50 text-gray-900">
+      <body className="antialiased bg-gray-50 text-gray-900 h-screen overflow-hidden">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

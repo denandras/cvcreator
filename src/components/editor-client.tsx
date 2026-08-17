@@ -569,36 +569,40 @@ export function EditorClient() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="h-full flex items-center justify-center">
         <p className="text-gray-500">Loading...</p>
       </div>
     );
   }
 
   if (!user) {
-    return <p className="p-8">Please sign in.</p>;
+    return (
+      <div className="h-full overflow-y-auto p-8">
+        <p className="text-gray-700">Please sign in.</p>
+      </div>
+    );
   }
 
   const showEditor = viewMode === "edit" || viewMode === "split";
   const showPreview = viewMode === "preview" || viewMode === "split";
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div className="h-full bg-gray-100 flex flex-col overflow-hidden min-h-0">
       {/* Top toolbar */}
-      <div className="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center justify-between gap-4 sticky top-0 z-30">
-        <div className="flex items-center gap-3">
+      <div className="bg-white border-b border-gray-200 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 sm:gap-4 flex-shrink-0 z-30">
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           <h1 className="text-lg font-bold text-gray-900">CV Editor</h1>
-          <span className="text-xs text-gray-400 hidden sm:inline">{user.email}</span>
+          <span className="text-xs text-gray-400 hidden md:inline">{user.email}</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
           {/* View mode toggle */}
           <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
             {(["edit", "split", "preview"] as ViewMode[]).map((mode) => (
               <button
                 key={mode}
                 onClick={() => setViewMode(mode)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                   viewMode === mode
                     ? "bg-white text-teal-600 shadow-sm"
                     : "text-gray-500 hover:text-gray-700"
@@ -616,7 +620,7 @@ export function EditorClient() {
                 key={lang.code}
                 onClick={() => setActiveLang(lang.code)}
                 title={lang.full}
-                className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                className={`px-2 sm:px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all ${
                   activeLang === lang.code
                     ? "bg-white text-teal-600 shadow-sm"
                     : "text-gray-500 hover:text-gray-700"
@@ -633,7 +637,7 @@ export function EditorClient() {
           {/* Design sidebar toggle */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+            className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
               sidebarOpen
                 ? "bg-teal-50 text-teal-600"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -646,7 +650,7 @@ export function EditorClient() {
           <button
             onClick={handleExportPdf}
             disabled={pdfExporting || !sections.length}
-            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
+            className="px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
           >
             {pdfExporting ? (
               <>
@@ -654,60 +658,68 @@ export function EditorClient() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                 </svg>
-                Exporting...
+                <span className="hidden sm:inline">Exporting...</span>
               </>
             ) : (
               <>
                 <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                   <path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.293a1 1 0 011.414 0L9 11.586V3a1 1 0 112 0v8.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" />
                 </svg>
-                Export PDF
+                <span className="hidden sm:inline">Export PDF</span>
               </>
             )}
           </button>
 
           <button
             onClick={() => signOut()}
-            className="text-xs text-gray-400 hover:text-gray-700 px-2"
+            className="text-xs text-gray-400 hover:text-gray-700 px-1.5 sm:px-2"
           >
-            Sign Out
+            <span className="hidden sm:inline">Sign Out</span>
+            <span className="sm:hidden">⎋</span>
           </button>
         </div>
       </div>
 
       {/* Error banner */}
       {error && (
-        <div className="mx-4 mt-3 p-3 bg-red-50 text-red-700 rounded-lg text-sm flex justify-between items-center">
+        <div className="mx-3 sm:mx-4 mt-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm flex justify-between items-center flex-shrink-0">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-900 font-bold">
+          <button onClick={() => setError(null)} className="text-red-900 font-bold flex-shrink-0 ml-2">
             x
           </button>
         </div>
       )}
 
       {/* Main layout */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Design sidebar */}
+      <div className="flex flex-1 overflow-hidden relative min-h-0">
+        {/* Design sidebar — overlay on mobile, fixed sidebar on desktop */}
         {sidebarOpen && (
-          <div className="w-72 flex-shrink-0 overflow-y-auto max-h-[calc(100vh-56px)]">
-            <DesignSidebar
-              design={designForm}
-              dirty={designDirty}
-              saving={designSaving}
-              saved={designSaved}
-              onChange={handleDesignChange}
-              onSave={handleSaveDesign}
-              onApplyTemplate={handleApplyTemplate}
-              onApplyPalette={handleApplyPalette}
-              onSidebarClose={() => setSidebarOpen(false)}
+          <>
+            {/* Mobile backdrop */}
+            <div
+              className="lg:hidden fixed inset-0 bg-black/30 z-40"
+              onClick={() => setSidebarOpen(false)}
             />
-          </div>
+            <div className="w-72 flex-shrink-0 overflow-y-auto h-full absolute lg:relative z-50 lg:z-auto inset-y-0 left-0 lg:inset-auto">
+              <DesignSidebar
+                design={designForm}
+                dirty={designDirty}
+                saving={designSaving}
+                saved={designSaved}
+                onChange={handleDesignChange}
+                onSave={handleSaveDesign}
+                onApplyTemplate={handleApplyTemplate}
+                onApplyPalette={handleApplyPalette}
+                onSidebarClose={() => setSidebarOpen(false)}
+              />
+            </div>
+          </>
         )}
 
         {/* Editor + Preview area */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-w-0 min-h-0">
           {loading ? (
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center min-h-0">
               <p className="text-gray-500">Loading CV data...</p>
             </div>
           ) : (
@@ -715,11 +727,13 @@ export function EditorClient() {
               {/* Editor pane */}
               {showEditor && (
                 <div
-                  className={`overflow-y-auto max-h-[calc(100vh-56px)] ${
-                    viewMode === "split" ? "w-1/2 border-r border-gray-200" : "flex-1"
+                  className={`overflow-y-auto min-w-0 min-h-0 ${
+                    viewMode === "split"
+                      ? "flex-1 lg:h-full lg:w-1/2 lg:border-r lg:border-gray-200 lg:flex-initial"
+                      : "flex-1 h-full"
                   }`}
                 >
-                  <div className="p-6 space-y-4">
+                  <div className="p-4 sm:p-6 space-y-4">
                     {/* Profile info inputs */}
                     <div className="bg-white rounded-xl border border-gray-200 p-4">
                       <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
@@ -864,11 +878,13 @@ export function EditorClient() {
               {/* Preview pane */}
               {showPreview && (
                 <div
-                  className={`overflow-y-auto bg-gray-200 max-h-[calc(100vh-56px)] ${
-                    viewMode === "split" ? "w-1/2" : "flex-1"
+                  className={`overflow-y-auto bg-gray-200 min-w-0 min-h-0 ${
+                    viewMode === "split"
+                      ? "flex-1 lg:h-full lg:w-1/2 lg:flex-initial"
+                      : "flex-1 h-full"
                   }`}
                 >
-                  <div className="p-6" ref={previewRef}>
+                  <div className="p-4 sm:p-6" ref={previewRef}>
                     <CVPreview
                       sections={sections}
                       design={designForm}
@@ -947,7 +963,7 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
         } ${isDragging ? "shadow-lg ring-2 ring-teal-300" : ""}`}
       >
         {/* Section header */}
-        <div className="flex items-center gap-2 p-3">
+        <div className="flex items-center gap-2 p-3 flex-wrap">
           {/* Drag handle */}
           <button
             {...attributes}
@@ -981,46 +997,48 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
             value={section.title}
             onChange={(e) => props.onUpdate({ title: e.target.value })}
             onBlur={() => props.onUpdate({ title: section.title })}
-            className="flex-1 font-medium text-gray-900 bg-transparent border-b border-transparent focus:border-teal-500 focus:outline-none px-1 py-1"
+            className="flex-1 min-w-[120px] font-medium text-gray-900 bg-transparent border-b border-transparent focus:border-teal-500 focus:outline-none px-1 py-1"
           />
 
-          {/* Section type */}
-          <select
-            value={section.section_type}
-            onChange={(e) => props.onUpdate({ section_type: e.target.value as SectionType })}
-            className="text-xs rounded-md border border-gray-300 px-2 py-1 bg-white text-gray-600"
-          >
-            {SECTION_TYPES.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
+          {/* Section type + Sort mode */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <select
+              value={section.section_type}
+              onChange={(e) => props.onUpdate({ section_type: e.target.value as SectionType })}
+              className="text-xs rounded-md border border-gray-300 px-2 py-1 bg-white text-gray-600"
+            >
+              {SECTION_TYPES.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
 
-          {/* Sort mode */}
-          <select
-            value={section.entry_sort_mode}
-            onChange={(e) => props.onSortModeChange(e.target.value as EntrySortMode)}
-            className="text-xs rounded-md border border-gray-300 px-2 py-1 bg-white text-gray-600"
-          >
-            {SORT_MODES.map((m) => (
-              <option key={m} value={m}>{m.replace("_", " ")}</option>
-            ))}
-          </select>
+            <select
+              value={section.entry_sort_mode}
+              onChange={(e) => props.onSortModeChange(e.target.value as EntrySortMode)}
+              className="text-xs rounded-md border border-gray-300 px-2 py-1 bg-white text-gray-600"
+            >
+              {SORT_MODES.map((m) => (
+                <option key={m} value={m}>{m.replace("_", " ")}</option>
+              ))}
+            </select>
+          </div>
 
-          {/* Expand/collapse */}
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-gray-400 hover:text-gray-700 px-1.5 py-1"
-          >
-            {expanded ? "\u2212" : "+"}
-          </button>
+          {/* Expand/collapse + Delete */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="text-gray-400 hover:text-gray-700 px-1.5 py-1"
+            >
+              {expanded ? "\u2212" : "+"}
+            </button>
 
-          {/* Delete */}
-          <button
-            onClick={props.onDelete}
-            className="text-red-400 hover:text-red-600 px-1 py-1 text-xs"
-          >
-            del
-          </button>
+            <button
+              onClick={props.onDelete}
+              className="text-red-400 hover:text-red-600 px-1 py-1 text-xs"
+            >
+              del
+            </button>
+          </div>
         </div>
 
         {/* Section layout options bar */}
@@ -1208,7 +1226,7 @@ export function SortableEntryRow({
       <button
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 mt-1"
+        className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 mt-1 flex-shrink-0"
         title="Drag to reorder"
       >
         <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
@@ -1226,11 +1244,11 @@ export function SortableEntryRow({
         type="checkbox"
         checked={entry.is_enabled}
         onChange={(e) => onToggle(e.target.checked)}
-        className="h-4 w-4 mt-1 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+        className="h-4 w-4 mt-1 rounded border-gray-300 text-teal-600 focus:ring-teal-500 flex-shrink-0"
       />
 
-      <div className="flex-1 space-y-1">
-        <div className="flex gap-2">
+      <div className="flex-1 min-w-0 space-y-1">
+        <div className="flex gap-2 flex-wrap">
           <input
             type="number"
             value={entry.year ?? ""}
@@ -1239,7 +1257,7 @@ export function SortableEntryRow({
               onUpdate({ year });
             }}
             placeholder="Year"
-            className="w-20 text-sm rounded border border-gray-300 px-2 py-1 bg-white"
+            className="w-20 text-sm rounded border border-gray-300 px-2 py-1 bg-white flex-shrink-0"
           />
           <input
             type="text"
@@ -1247,7 +1265,7 @@ export function SortableEntryRow({
             onChange={(e) => setTitle(e.target.value)}
             onBlur={handleSaveLang}
             placeholder="Title"
-            className="flex-1 text-sm rounded border border-gray-300 px-2 py-1 bg-white"
+            className="flex-1 min-w-[100px] text-sm rounded border border-gray-300 px-2 py-1 bg-white"
           />
           <input
             type="text"
@@ -1255,7 +1273,7 @@ export function SortableEntryRow({
             onChange={(e) => setOrganization(e.target.value)}
             onBlur={handleSaveLang}
             placeholder="Organization"
-            className="flex-1 text-sm rounded border border-gray-300 px-2 py-1 bg-white"
+            className="flex-1 min-w-[100px] text-sm rounded border border-gray-300 px-2 py-1 bg-white"
           />
         </div>
         <textarea

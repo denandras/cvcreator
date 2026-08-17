@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-8">
+    <main className="h-full overflow-y-auto flex flex-col items-center justify-center p-8">
       <div className="max-w-2xl w-full text-center space-y-6">
         <h1 className="text-4xl font-bold tracking-tight text-gray-900">
           CV Creator

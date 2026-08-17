@@ -46,7 +46,7 @@ export function DesignSidebar({
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0">
         <h2 className="text-sm font-semibold text-gray-900">Design</h2>
         <div className="flex items-center gap-2">
           {dirty && (
@@ -337,7 +337,7 @@ export function DesignSidebar({
       </div>
 
       {/* Save button */}
-      <div className="border-t border-gray-200 p-4">
+      <div className="border-t border-gray-200 p-4 flex-shrink-0">
         <button
           onClick={onSave}
           disabled={!dirty || saving}

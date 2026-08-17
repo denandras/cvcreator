@@ -188,11 +188,11 @@ export function CVPreview({
   };
 
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div className="flex flex-col items-center gap-4 w-full overflow-x-auto">
       {pages.map((pageSections, pageIdx) => (
         <div
           key={pageIdx}
-          className="bg-white shadow-lg relative"
+          className="bg-white shadow-lg relative flex-shrink-0"
           style={{
             width: `${PAGE_WIDTH}px`,
             minHeight: `${PAGE_HEIGHT}px`,

@@ -463,24 +463,24 @@ export function DemoEditor() {
   const showPreview = viewMode === "preview" || viewMode === "split";
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div className="h-full bg-gray-100 flex flex-col overflow-hidden min-h-0">
       {/* Top toolbar */}
-      <div className="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center justify-between gap-4 sticky top-0 z-30">
-        <div className="flex items-center gap-3">
+      <div className="bg-white border-b border-gray-200 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 sm:gap-4 flex-shrink-0 z-30">
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           <h1 className="text-lg font-bold text-gray-900">CV Editor</h1>
           <span className="text-xs text-amber-600 font-medium px-2 py-0.5 bg-amber-50 rounded">
             Demo Mode
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
           {/* View mode toggle */}
           <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
             {(["edit", "split", "preview"] as ViewMode[]).map((mode) => (
               <button
                 key={mode}
                 onClick={() => setViewMode(mode)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                   viewMode === mode
                     ? "bg-white text-teal-600 shadow-sm"
                     : "text-gray-500 hover:text-gray-700"
@@ -498,7 +498,7 @@ export function DemoEditor() {
                 key={lang.code}
                 onClick={() => setActiveLang(lang.code)}
                 title={lang.full}
-                className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                className={`px-2 sm:px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all ${
                   activeLang === lang.code
                     ? "bg-white text-teal-600 shadow-sm"
                     : "text-gray-500 hover:text-gray-700"
@@ -515,7 +515,7 @@ export function DemoEditor() {
           {/* Design sidebar toggle */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+            className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
               sidebarOpen
                 ? "bg-teal-50 text-teal-600"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -527,16 +527,17 @@ export function DemoEditor() {
           {/* Reset demo */}
           <button
             onClick={resetDemo}
-            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+            className="px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
           >
-            Reset Demo
+            <span className="hidden sm:inline">Reset Demo</span>
+            <span className="sm:hidden">Reset</span>
           </button>
 
           {/* PDF export */}
           <button
             onClick={handleExportPdf}
             disabled={pdfExporting || !sections.length}
-            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
+            className="px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
           >
             {pdfExporting ? (
               <>
@@ -544,14 +545,14 @@ export function DemoEditor() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                 </svg>
-                Exporting...
+                <span className="hidden sm:inline">Exporting...</span>
               </>
             ) : (
               <>
                 <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                   <path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.293a1 1 0 011.414 0L9 11.586V3a1 1 0 112 0v8.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" />
                 </svg>
-                Export PDF
+                <span className="hidden sm:inline">Export PDF</span>
               </>
             )}
           </button>
@@ -559,34 +560,43 @@ export function DemoEditor() {
       </div>
 
       {/* Main layout */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Design sidebar */}
+      <div className="flex flex-1 overflow-hidden relative min-h-0">
+        {/* Design sidebar — overlay on mobile, fixed sidebar on desktop */}
         {sidebarOpen && (
-          <div className="w-72 flex-shrink-0 overflow-y-auto max-h-[calc(100vh-56px)]">
-            <DesignSidebar
-              design={designForm}
-              dirty={designDirty}
-              saving={false}
-              saved={designSaved}
-              onChange={handleDesignChange}
-              onSave={handleSaveDesign}
-              onApplyTemplate={handleApplyTemplate}
-              onApplyPalette={handleApplyPalette}
-              onSidebarClose={() => setSidebarOpen(false)}
+          <>
+            {/* Mobile backdrop */}
+            <div
+              className="lg:hidden fixed inset-0 bg-black/30 z-40"
+              onClick={() => setSidebarOpen(false)}
             />
-          </div>
+            <div className="w-72 flex-shrink-0 overflow-y-auto h-full absolute lg:relative z-50 lg:z-auto inset-y-0 left-0 lg:inset-auto">
+              <DesignSidebar
+                design={designForm}
+                dirty={designDirty}
+                saving={false}
+                saved={designSaved}
+                onChange={handleDesignChange}
+                onSave={handleSaveDesign}
+                onApplyTemplate={handleApplyTemplate}
+                onApplyPalette={handleApplyPalette}
+                onSidebarClose={() => setSidebarOpen(false)}
+              />
+            </div>
+          </>
         )}
 
         {/* Editor + Preview area */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-w-0 min-h-0">
           {/* Editor pane */}
           {showEditor && (
             <div
-              className={`overflow-y-auto max-h-[calc(100vh-56px)] ${
-                viewMode === "split" ? "w-1/2 border-r border-gray-200" : "flex-1"
+              className={`overflow-y-auto min-w-0 min-h-0 ${
+                viewMode === "split"
+                  ? "flex-1 lg:h-full lg:w-1/2 lg:border-r lg:border-gray-200 lg:flex-initial"
+                  : "flex-1 h-full"
               }`}
             >
-              <div className="p-6 space-y-4">
+              <div className="p-4 sm:p-6 space-y-4">
                 {/* Profile info inputs */}
                 <div className="bg-white rounded-xl border border-gray-200 p-4">
                   <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
@@ -729,11 +739,13 @@ export function DemoEditor() {
           {showPreview && (
             <div
               ref={previewRef}
-              className={`overflow-y-auto bg-gray-200 max-h-[calc(100vh-56px)] ${
-                viewMode === "split" ? "w-1/2" : "flex-1"
+              className={`overflow-y-auto bg-gray-200 min-w-0 min-h-0 ${
+                viewMode === "split"
+                  ? "flex-1 lg:h-full lg:w-1/2 lg:flex-initial"
+                  : "flex-1 h-full"
               }`}
             >
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 <CVPreview
                   sections={sections}
                   design={designForm}
