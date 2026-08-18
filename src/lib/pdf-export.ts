@@ -155,7 +155,7 @@ interface RenderContext {
 // ─── Render functions ──────────────────────────────────────────────────────────
 
 function drawPageBackground(ctx: RenderContext): void {
-  const [r, g, b] = parseColor(ctx.pageMarginColor);
+  const [r, g, b] = rgb255(ctx.pageMarginColor);
   ctx.doc.setFillColor(r, g, b);
   ctx.doc.rect(0, 0, ctx.pageWidthPt, ctx.pageHeightPt, "F");
 }
