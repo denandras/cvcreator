@@ -552,20 +552,6 @@ export function DemoEditor() {
 
         {/* Action icons */}
         <div className="flex items-center gap-1.5">
-          {/* Design sidebar toggle */}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`p-2 rounded-lg transition-all ${
-              sidebarOpen ? "bg-teal-50 text-teal-600" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
-            aria-label="Design panel"
-            title="Design"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M3 4h14v2H3V4zm0 4h10v2H3V8zm0 4h14v2H3v-2zm0 4h8v2H3v-2z" />
-            </svg>
-          </button>
-
           {/* Reset demo */}
           <button
             onClick={resetDemo}
@@ -602,28 +588,53 @@ export function DemoEditor() {
 
       {/* Main layout */}
       <div className="flex flex-1 overflow-hidden relative min-h-0">
-        {/* Design sidebar — overlay on mobile, fixed sidebar on desktop */}
+        {/* Design sidebar — slides in from the right, always mounted for smooth animation */}
+        {/* Mobile backdrop */}
         {sidebarOpen && (
-          <>
-            {/* Mobile backdrop */}
-            <div
-              className="lg:hidden fixed inset-0 bg-black/30 z-40"
-              onClick={() => setSidebarOpen(false)}
+          <div
+            className="lg:hidden fixed inset-0 bg-black/30 z-40 backdrop-fade-in"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+        {/* Sidebar container — width animates on desktop for layout reflow */}
+        <div
+          className={`design-sidebar-container flex-shrink-0 overflow-hidden h-full ${
+            sidebarOpen
+              ? "w-72 lg:w-72"
+              : "w-0 lg:w-0"
+          } fixed lg:relative z-50 lg:z-auto top-0 right-0 bottom-0 lg:inset-auto`}
+        >
+          <div
+            className={`design-sidebar-inner w-72 h-full overflow-y-auto ${
+              sidebarOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0 lg:translate-x-full"
+            }`}
+          >
+            <DesignSidebar
+              design={designForm}
+              dirty={designDirty}
+              saving={false}
+              saved={designSaved}
+              onChange={handleDesignChange}
+              onSave={handleSaveDesign}
+              onApplyTemplate={handleApplyTemplate}
+              onApplyPalette={handleApplyPalette}
+              onSidebarClose={() => setSidebarOpen(false)}
             />
-            <div className="w-72 flex-shrink-0 overflow-y-auto h-full fixed lg:relative z-50 lg:z-auto top-0 left-0 bottom-0 lg:inset-auto">
-              <DesignSidebar
-                design={designForm}
-                dirty={designDirty}
-                saving={false}
-                saved={designSaved}
-                onChange={handleDesignChange}
-                onSave={handleSaveDesign}
-                onApplyTemplate={handleApplyTemplate}
-                onApplyPalette={handleApplyPalette}
-                onSidebarClose={() => setSidebarOpen(false)}
-              />
-            </div>
-          </>
+          </div>
+        </div>
+
+        {/* Floating trigger button — appears on the right edge when sidebar is closed */}
+        {!sidebarOpen && (
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="design-trigger-pop fixed lg:absolute right-0 top-1/2 -translate-y-1/2 z-40 lg:z-30 bg-teal-600 text-white p-2.5 rounded-l-xl shadow-lg hover:bg-teal-700 transition-colors"
+            aria-label="Open design panel"
+            title="Open design panel"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M3 4h14v2H3V4zm0 4h10v2H3V8zm0 4h14v2H3v-2zm0 4h8v2H3v-2z" />
+            </svg>
+          </button>
         )}
 
         {/* Editor + Preview area */}
@@ -642,7 +653,7 @@ export function DemoEditor() {
                 {languages.length > 0 && (
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Lang:</span>
-                    <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                    <div className="flex items-center flex-wrap gap-0.5 bg-gray-100 rounded-lg p-0.5">
                       {languages.map((lang) => (
                         <button
                           key={lang.code}

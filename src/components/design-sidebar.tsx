@@ -44,7 +44,7 @@ export function DesignSidebar({
   ];
 
   return (
-    <div className="flex flex-col h-full bg-white border-r border-gray-200">
+    <div className="flex flex-col h-full bg-white border-l border-gray-200 shadow-xl lg:shadow-none">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0">
         <h2 className="text-sm font-semibold text-gray-900">Design</h2>

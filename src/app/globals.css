@@ -104,4 +104,36 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  /* ─── Design sidebar slide animation ────────────────────────────────────── */
+  /* Uses transform for GPU-accelerated slide; width transitions for layout reflow */
+  .design-sidebar-container {
+    transition: width 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: width, transform;
+  }
+  .design-sidebar-inner {
+    transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 200ms ease-out;
+    will-change: transform, opacity;
+  }
+
+  /* Floating trigger button pulse on appear */
+  @keyframes design-trigger-pop {
+    0% { transform: scale(0.8); opacity: 0; }
+    60% { transform: scale(1.05); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .design-trigger-pop {
+    animation: design-trigger-pop 250ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  /* Mobile backdrop fade */
+  @keyframes backdrop-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .backdrop-fade-in {
+    animation: backdrop-fade-in 200ms ease-out both;
+  }
 }
