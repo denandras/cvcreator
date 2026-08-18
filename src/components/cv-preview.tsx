@@ -468,15 +468,6 @@ export function CVPreview({
               {pageIdx === 0 && renderProfileHeader()}
 
               {pageSections.map(renderSection)}
-
-              {showPageBreaks && pageIdx < pages.length - 1 && (
-                <div
-                  className="absolute left-0 right-0 border-t-2 border-dashed border-red-300"
-                  style={{ bottom: "0" }}
-                >
-                  <span className="absolute -top-5 right-2 text-xs text-red-400">Page break</span>
-                </div>
-              )}
             </div>
           </div>
         ))}

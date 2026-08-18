@@ -34,7 +34,7 @@ import { DEMO_LANGUAGES, saveLanguages, loadLanguages } from "@/lib/languages";
 import { CVPreview } from "@/components/cv-preview";
 import { DesignSidebar } from "@/components/design-sidebar";
 import { getTemplate, getPalette } from "@/lib/design-constants";
-import { exportToPdf } from "@/lib/pdf-export";
+import { exportToPdf, type PdfCVData } from "@/lib/pdf-export";
 import {
   getProfilePicture,
   setProfilePicture,
@@ -223,9 +223,19 @@ export function DemoEditor() {
     if (!previewRef.current) return;
     setPdfExporting(true);
     try {
+      const cvData: PdfCVData = {
+        profileName,
+        profileTitle,
+        profilePicture: includePhotoInPdf ? profilePicture : null,
+        sections,
+        design: designForm,
+        activeLang,
+        pageBreaks,
+      };
       await exportToPdf(previewRef.current, {
         profileName: profileName || "CV",
         includePhoto: includePhotoInPdf,
+        cvData,
       });
     } catch (err) {
       console.error("Failed to export PDF:", err);

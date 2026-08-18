@@ -52,7 +52,7 @@ import {
   setProfilePicture,
   removeProfilePicture,
 } from "@/lib/profile-picture";
-import { exportToPdf } from "@/lib/pdf-export";
+import { exportToPdf, type PdfCVData } from "@/lib/pdf-export";
 import type { CustomLanguage } from "@/lib/languages";
 import { ensureLanguages, saveLanguages } from "@/lib/languages";
 import { LanguageManager } from "@/components/language-manager";
@@ -569,9 +569,19 @@ export function EditorClient() {
     if (!previewRef.current) return;
     setPdfExporting(true);
     try {
+      const cvData: PdfCVData = {
+        profileName,
+        profileTitle,
+        profilePicture: includePhotoInPdf ? profilePicture : null,
+        sections,
+        design: designForm,
+        activeLang,
+        pageBreaks,
+      };
       await exportToPdf(previewRef.current, {
         profileName: profileName || "CV",
         includePhoto: includePhotoInPdf,
+        cvData,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to export PDF");
