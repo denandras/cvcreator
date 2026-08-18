@@ -29,8 +29,9 @@ import {
   SortableSectionCard,
 } from "@/components/editor-client";
 import { LanguageManager } from "@/components/language-manager";
+import { TranslationPanel } from "@/components/translation-panel";
 import type { CustomLanguage } from "@/lib/languages";
-import { DEMO_LANGUAGES, saveLanguages, loadLanguages } from "@/lib/languages";
+import { DEMO_LANGUAGES, saveLanguages, loadLanguages, ensurePrimaryLanguage, savePrimaryLanguage } from "@/lib/languages";
 import { CVPreview } from "@/components/cv-preview";
 import { DesignSidebar } from "@/components/design-sidebar";
 import { getTemplate, getPalette } from "@/lib/design-constants";
@@ -103,6 +104,7 @@ export function DemoEditor() {
   const [profileTitle, setProfileTitle] = useState(() => loadDemoProfile().title);
   const [activeLang, setActiveLang] = useState("hu");
   const [languages, setLanguages] = useState<CustomLanguage[]>(DEMO_LANGUAGES);
+  const [primaryLang, setPrimaryLang] = useState("hu");
   const [viewMode, setViewMode] = useState<ViewMode>(() =>
     typeof window !== "undefined" && window.innerWidth < 768 ? "edit" : "split"
   );
@@ -182,20 +184,36 @@ export function DemoEditor() {
   useEffect(() => {
     // For demo mode: if no languages stored, seed with demo languages (HU, EN, DE, FR)
     const stored = loadLanguages();
+    let langs = stored;
     if (stored.length === 0) {
+      langs = DEMO_LANGUAGES;
       setLanguages(DEMO_LANGUAGES);
       saveLanguages(DEMO_LANGUAGES);
     } else {
       setLanguages(stored);
-      if (!stored.find((l) => l.code === activeLang)) {
-        setActiveLang(stored[0].code);
-      }
+    }
+    // Ensure primary language is set
+    const primary = ensurePrimaryLanguage(langs);
+    setPrimaryLang(primary);
+    if (!langs.find((l) => l.code === activeLang)) {
+      setActiveLang(primary);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLanguagesChange = (updated: CustomLanguage[]) => {
     setLanguages(updated);
     saveLanguages(updated);
+    // If primary language was removed, reset to first available
+    if (updated.length > 0 && !updated.find((l) => l.code === primaryLang)) {
+      const newPrimary = updated[0].code;
+      setPrimaryLang(newPrimary);
+      savePrimaryLanguage(newPrimary);
+    }
+  };
+
+  const handlePrimaryLangChange = (code: string) => {
+    setPrimaryLang(code);
+    savePrimaryLanguage(code);
   };
 
   // ─── Photo handlers ────────────────────────────────────────────────────────
@@ -659,22 +677,29 @@ export function DemoEditor() {
               }`}
             >
               <div className="p-4 sm:p-6 space-y-4">
-                {/* Language quick-switch — moved from header to edit pane */}
+                {/* Language quick-switch */}
                 {languages.length > 0 && (
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Lang:</span>
+                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                      {activeLang === primaryLang ? "Primary:" : "Translating:"}
+                    </span>
                     <div className="flex items-center flex-wrap gap-0.5 bg-gray-100 rounded-lg p-0.5">
                       {languages.map((lang) => (
                         <button
                           key={lang.code}
                           onClick={() => setActiveLang(lang.code)}
-                          title={lang.full}
-                          className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                          title={lang.full + (lang.code === primaryLang ? " (primary)" : "")}
+                          className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1 ${
                             activeLang === lang.code
                               ? "bg-white text-teal-600 shadow-sm"
                               : "text-gray-500 hover:text-gray-700"
                           }`}
                         >
+                          {lang.code === primaryLang && (
+                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                          )}
                           {lang.label}
                         </button>
                       ))}
@@ -682,6 +707,32 @@ export function DemoEditor() {
                   </div>
                 )}
 
+                {activeLang !== primaryLang ? (
+                  /* ─── Translation mode — secondary language active ─── */
+                  <>
+                    {/* Language management */}
+                    <LanguageManager
+                      languages={languages}
+                      onChange={handleLanguagesChange}
+                      activeLang={activeLang}
+                      onActiveLangChange={setActiveLang}
+                      primaryLang={primaryLang}
+                      onPrimaryLangChange={handlePrimaryLangChange}
+                    />
+
+                    {/* Translation panel */}
+                    <TranslationPanel
+                      sections={sections}
+                      primaryLang={primaryLang}
+                      secondaryLang={activeLang}
+                      languages={languages}
+                      onSaveTranslation={handleSaveTranslation}
+                      onDeleteTranslation={handleDeleteTranslation}
+                    />
+                  </>
+                ) : (
+                  /* ─── Primary language mode — full editing ─── */
+                  <>
                 {/* Profile info inputs */}
                 <div className="bg-white rounded-xl border border-gray-200 p-4">
                   <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
@@ -769,6 +820,8 @@ export function DemoEditor() {
                   onChange={handleLanguagesChange}
                   activeLang={activeLang}
                   onActiveLangChange={setActiveLang}
+                  primaryLang={primaryLang}
+                  onPrimaryLangChange={handlePrimaryLangChange}
                 />
 
                 {/* Sortable sections */}
@@ -826,6 +879,8 @@ export function DemoEditor() {
                   </svg>
                   Add Section
                 </button>
+                  </>
+                )}
               </div>
             </div>
           )}

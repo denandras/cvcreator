@@ -54,8 +54,9 @@ import {
 } from "@/lib/profile-picture";
 import { exportToPdf, type PdfCVData } from "@/lib/pdf-export";
 import type { CustomLanguage } from "@/lib/languages";
-import { ensureLanguages, saveLanguages } from "@/lib/languages";
+import { ensureLanguages, saveLanguages, ensurePrimaryLanguage, savePrimaryLanguage } from "@/lib/languages";
 import { LanguageManager } from "@/components/language-manager";
+import { TranslationPanel } from "@/components/translation-panel";
 
 export const SORT_MODES: EntrySortMode[] = ["year_asc", "year_desc", "custom"];
 
@@ -78,6 +79,9 @@ export function EditorClient() {
 
   // Custom languages — user-managed, persisted to localStorage
   const [languages, setLanguages] = useState<CustomLanguage[]>(DEFAULT_LANGUAGES);
+
+  // Primary language — the main CV language (others are translations)
+  const [primaryLang, setPrimaryLang] = useState("hu");
 
   // View mode: edit / preview / split
   const [viewMode, setViewMode] = useState<ViewMode>("edit");
@@ -178,15 +182,29 @@ export function EditorClient() {
   useEffect(() => {
     const stored = ensureLanguages();
     setLanguages(stored);
-    // If active lang is not in stored languages, switch to first available
+    // Ensure primary language is set
+    const primary = ensurePrimaryLanguage(stored);
+    setPrimaryLang(primary);
+    // If active lang is not in stored languages, switch to primary
     if (stored.length > 0 && !stored.find((l) => l.code === activeLang)) {
-      setActiveLang(stored[0].code);
+      setActiveLang(primary);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLanguagesChange = (updated: CustomLanguage[]) => {
     setLanguages(updated);
     saveLanguages(updated);
+    // If primary language was removed, reset to first available
+    if (updated.length > 0 && !updated.find((l) => l.code === primaryLang)) {
+      const newPrimary = updated[0].code;
+      setPrimaryLang(newPrimary);
+      savePrimaryLanguage(newPrimary);
+    }
+  };
+
+  const handlePrimaryLangChange = (code: string) => {
+    setPrimaryLang(code);
+    savePrimaryLanguage(code);
   };
 
   // ─── Section handlers ────────────────────────────────────────────────────
@@ -793,19 +811,26 @@ export function EditorClient() {
                     {/* Language quick-switch — moved from header to edit pane */}
                     {languages.length > 0 && (
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Lang:</span>
+                        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                          {activeLang === primaryLang ? "Primary:" : "Translating:"}
+                        </span>
                         <div className="flex items-center flex-wrap gap-0.5 bg-gray-100 rounded-lg p-0.5">
                           {languages.map((lang) => (
                             <button
                               key={lang.code}
                               onClick={() => setActiveLang(lang.code)}
-                              title={lang.full}
-                              className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                              title={lang.full + (lang.code === primaryLang ? " (primary)" : "")}
+                              className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1 ${
                                 activeLang === lang.code
                                   ? "bg-white text-teal-600 shadow-sm"
                                   : "text-gray-500 hover:text-gray-700"
                               }`}
                             >
+                              {lang.code === primaryLang && (
+                                <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                              )}
                               {lang.label}
                             </button>
                           ))}
@@ -813,6 +838,32 @@ export function EditorClient() {
                       </div>
                     )}
 
+                    {activeLang !== primaryLang ? (
+                      /* ─── Translation mode — secondary language active ─── */
+                      <>
+                        {/* Language management */}
+                        <LanguageManager
+                          languages={languages}
+                          onChange={handleLanguagesChange}
+                          activeLang={activeLang}
+                          onActiveLangChange={setActiveLang}
+                          primaryLang={primaryLang}
+                          onPrimaryLangChange={handlePrimaryLangChange}
+                        />
+
+                        {/* Translation panel */}
+                        <TranslationPanel
+                          sections={sections}
+                          primaryLang={primaryLang}
+                          secondaryLang={activeLang}
+                          languages={languages}
+                          onSaveTranslation={handleSaveTranslation}
+                          onDeleteTranslation={handleDeleteTranslation}
+                        />
+                      </>
+                    ) : (
+                      /* ─── Primary language mode — full editing ─── */
+                      <>
                     {/* Profile info inputs */}
                     <div className="bg-white rounded-xl border border-gray-200 p-4">
                       <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
@@ -907,6 +958,8 @@ export function EditorClient() {
                       onChange={handleLanguagesChange}
                       activeLang={activeLang}
                       onActiveLangChange={setActiveLang}
+                      primaryLang={primaryLang}
+                      onPrimaryLangChange={handlePrimaryLangChange}
                     />
 
                     {/* Sortable sections */}
@@ -960,6 +1013,8 @@ export function EditorClient() {
                       </svg>
                       Add Section
                     </button>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -1287,7 +1342,6 @@ export function SortableEntryRow({
   const [title, setTitle] = useState(translation?.title ?? "");
   const [organization, setOrganization] = useState(translation?.organization ?? "");
   const [description, setDescription] = useState(translation?.description ?? "");
-  const [showLangEditor, setShowLangEditor] = useState(false);
 
   useEffect(() => {
     setTitle(translation?.title ?? "");
@@ -1302,6 +1356,11 @@ export function SortableEntryRow({
       description: description.replace(/\n{3,}/g, "\n\n").trim(),
     });
   };
+
+  // Count how many languages have translations for this entry
+  const translatedCount = entry.translations.filter(
+    (t) => t.title || t.organization || t.description
+  ).length;
 
   return (
     <div
@@ -1373,39 +1432,17 @@ export function SortableEntryRow({
           rows={2}
           className="w-full text-sm rounded-lg border border-gray-200 px-2 py-1.5 bg-white resize-y focus:border-teal-500 focus:outline-none"
         />
+        {/* Translation status indicator — no inline editor, translations done in TranslationPanel */}
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400 italic">
-            {entry.translations.filter((t) => t.title || t.organization || t.description).length}/{languages.length} languages
+            {translatedCount}/{languages.length} languages
           </span>
-          <button
-            onClick={() => setShowLangEditor(!showLangEditor)}
-            className="text-xs text-teal-500 hover:text-teal-700 font-medium"
-          >
-            {showLangEditor ? "Hide" : "Edit"}
-          </button>
+          {translatedCount < languages.length && (
+            <span className="text-xs text-teal-500">
+              Switch to a secondary language to translate
+            </span>
+          )}
         </div>
-        {showLangEditor && (
-          <div className="mt-2 space-y-2 p-3 bg-white rounded-lg border border-gray-200">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
-              Translations
-            </div>
-            {languages.length === 0 && (
-              <p className="text-xs text-gray-400 italic">Add a language first to create translations.</p>
-            )}
-            {languages.map((lang) => {
-              const t = entry.translations.find((tr) => tr.language === lang.code);
-              return (
-                <TranslationEditorRow
-                  key={lang.code}
-                  lang={lang}
-                  translation={t}
-                  onSave={(fields) => onSaveTranslation(lang.code, fields)}
-                  onDelete={() => onDeleteTranslation(lang.code)}
-                />
-              );
-            })}
-          </div>
-        )}
       </div>
 
       <button
@@ -1418,119 +1455,6 @@ export function SortableEntryRow({
           <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
         </svg>
       </button>
-    </div>
-  );
-}
-
-// ─── Translation Editor Row (editable per-language) ─────────────────────────
-
-interface TranslationEditorRowProps {
-  lang: CustomLanguage;
-  translation?: SectionWithEntries["entries"][0]["translations"][0];
-  onSave: (fields: { title: string; organization: string; description: string }) => void;
-  onDelete: () => void;
-}
-
-function TranslationEditorRow({ lang, translation, onSave, onDelete }: TranslationEditorRowProps) {
-  const [editing, setEditing] = useState(false);
-  const [title, setTitle] = useState(translation?.title ?? "");
-  const [organization, setOrganization] = useState(translation?.organization ?? "");
-  const [description, setDescription] = useState(translation?.description ?? "");
-
-  // Sync local state when translation changes externally
-  useEffect(() => {
-    if (!editing) {
-      setTitle(translation?.title ?? "");
-      setOrganization(translation?.organization ?? "");
-      setDescription(translation?.description ?? "");
-    }
-  }, [translation?.title, translation?.organization, translation?.description, editing]);
-
-  const handleSave = () => {
-    onSave({
-      title: title.trim(),
-      organization: organization.trim(),
-      description: description.replace(/\n{3,}/g, "\n\n").trim(),
-    });
-    setEditing(false);
-  };
-
-  const handleCancel = () => {
-    setTitle(translation?.title ?? "");
-    setOrganization(translation?.organization ?? "");
-    setDescription(translation?.description ?? "");
-    setEditing(false);
-  };
-
-  if (!editing) {
-    return (
-      <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-gray-50 hover:bg-gray-100 transition-colors">
-        <span className="text-xs font-bold text-teal-600 w-8">{lang.label}</span>
-        <div className="flex-1 text-xs text-gray-600 truncate">
-          {translation
-            ? [translation.title, translation.organization].filter(Boolean).join(" — ") || "Empty"
-            : <span className="text-gray-400 italic">Not translated</span>}
-        </div>
-        <button
-          onClick={() => setEditing(true)}
-          className="text-xs text-teal-600 hover:text-teal-700 font-medium"
-        >
-          {translation ? "Edit" : "Add"}
-        </button>
-        {translation && (
-          <button
-            onClick={onDelete}
-            className="text-xs text-red-400 hover:text-red-600"
-            title="Remove translation"
-          >
-            remove
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="px-2 py-2 rounded-md bg-white border border-teal-200 space-y-1.5">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-xs font-bold text-teal-600">{lang.label}</span>
-        <span className="text-xs text-gray-500">{lang.full}</span>
-      </div>
-      <input
-        type="text"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="Title"
-        className="w-full text-xs rounded border border-gray-300 px-2 py-1 bg-white focus:border-teal-500 focus:outline-none"
-      />
-      <input
-        type="text"
-        value={organization}
-        onChange={(e) => setOrganization(e.target.value)}
-        placeholder="Organization"
-        className="w-full text-xs rounded border border-gray-300 px-2 py-1 bg-white focus:border-teal-500 focus:outline-none"
-      />
-      <textarea
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        placeholder="Description"
-        rows={2}
-        className="w-full text-xs rounded border border-gray-300 px-2 py-1 bg-white resize-y focus:border-teal-500 focus:outline-none"
-      />
-      <div className="flex gap-1.5 justify-end">
-        <button
-          onClick={handleCancel}
-          className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleSave}
-          className="text-xs text-white bg-teal-600 hover:bg-teal-700 px-3 py-1 rounded font-medium"
-        >
-          Save
-        </button>
-      </div>
     </div>
   );
 }

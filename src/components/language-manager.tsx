@@ -2,13 +2,15 @@
 
 import { useState } from "react";
 import type { CustomLanguage } from "@/lib/languages";
-import { addLanguage, removeLanguage } from "@/lib/languages";
+import { addLanguage, removeLanguage, savePrimaryLanguage } from "@/lib/languages";
 
 interface LanguageManagerProps {
   languages: CustomLanguage[];
   onChange: (languages: CustomLanguage[]) => void;
   activeLang: string;
   onActiveLangChange: (code: string) => void;
+  primaryLang: string;
+  onPrimaryLangChange: (code: string) => void;
 }
 
 export function LanguageManager({
@@ -16,6 +18,8 @@ export function LanguageManager({
   onChange,
   activeLang,
   onActiveLangChange,
+  primaryLang,
+  onPrimaryLangChange,
 }: LanguageManagerProps) {
   const [newLangName, setNewLangName] = useState("");
   const [newLangCode, setNewLangCode] = useState("");
@@ -35,12 +39,21 @@ export function LanguageManager({
   };
 
   const handleRemove = (code: string) => {
+    // Don't allow removing the primary language
+    if (code === primaryLang) return;
     const updated = removeLanguage(languages, code);
     onChange(updated);
-    // If removing the active language, switch to the first available
-    if (activeLang === code && updated.length > 0) {
-      onActiveLangChange(updated[0].code);
+    // If removing the active language, switch to primary
+    if (activeLang === code) {
+      onActiveLangChange(primaryLang);
     }
+  };
+
+  const handleSetPrimary = (code: string) => {
+    onPrimaryLangChange(code);
+    savePrimaryLanguage(code);
+    // Switch to the new primary language
+    onActiveLangChange(code);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -74,45 +87,91 @@ export function LanguageManager({
         )}
       </div>
 
-      {/* Language list */}
-      <div className="space-y-1.5">
-        {languages.length === 0 && !showAddForm && (
-          <p className="text-xs text-gray-400 py-2 italic">
-            No languages yet. Add one to start translating.
-          </p>
-        )}
-        {languages.map((lang) => (
-          <div
-            key={lang.code}
-            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-colors ${
-              activeLang === lang.code
-                ? "bg-teal-50 ring-1 ring-teal-200"
-                : "bg-gray-50 hover:bg-gray-100"
-            }`}
-          >
-            <button
-              onClick={() => onActiveLangChange(lang.code)}
-              className="flex items-center gap-2 flex-1 text-left"
+      {/* Primary language section */}
+      {languages.length > 0 && (
+        <div className="mb-2 pb-2 border-b border-gray-100">
+          <div className="text-xs text-gray-400 mb-1.5 font-medium">Primary (main CV language)</div>
+          {languages.filter((l) => l.code === primaryLang).map((lang) => (
+            <div
+              key={lang.code}
+              className={`flex items-center gap-2 px-2.5 py-2 rounded-lg transition-colors ${
+                activeLang === lang.code
+                  ? "bg-teal-50 ring-1 ring-teal-200"
+                  : "bg-gray-50 hover:bg-gray-100"
+              }`}
             >
-              <span className="text-xs font-bold text-teal-600 w-8">{lang.label}</span>
-              <span className="text-sm text-gray-700">{lang.full}</span>
-            </button>
-            <button
-              onClick={() => handleRemove(lang.code)}
-              className="text-gray-300 hover:text-red-500 transition-colors p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg hover:bg-red-50"
-              title={`Remove ${lang.full}`}
-            >
-              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
+              <button
+                onClick={() => onActiveLangChange(lang.code)}
+                className="flex items-center gap-2 flex-1 text-left"
+              >
+                <span className="text-xs font-bold text-teal-600 w-8">{lang.label}</span>
+                <span className="text-sm text-gray-700">{lang.full}</span>
+              </button>
+              <span className="text-xs font-medium text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+                Primary
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Secondary languages section */}
+      {languages.filter((l) => l.code !== primaryLang).length > 0 && (
+        <div>
+          <div className="text-xs text-gray-400 mb-1.5 font-medium">Secondary (translations)</div>
+          <div className="space-y-1.5">
+            {languages.filter((l) => l.code !== primaryLang).map((lang) => (
+              <div
+                key={lang.code}
+                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-colors group ${
+                  activeLang === lang.code
+                    ? "bg-teal-50 ring-1 ring-teal-200"
+                    : "bg-gray-50 hover:bg-gray-100"
+                }`}
+              >
+                <button
+                  onClick={() => onActiveLangChange(lang.code)}
+                  className="flex items-center gap-2 flex-1 text-left"
+                >
+                  <span className="text-xs font-bold text-teal-600 w-8">{lang.label}</span>
+                  <span className="text-sm text-gray-700">{lang.full}</span>
+                </button>
+                <button
+                  onClick={() => handleSetPrimary(lang.code)}
+                  className="text-gray-300 hover:text-teal-500 transition-colors p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg hover:bg-teal-50 opacity-0 group-hover:opacity-100"
+                  title={`Set ${lang.full} as primary`}
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => handleRemove(lang.code)}
+                  className="text-gray-300 hover:text-red-500 transition-colors p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg hover:bg-red-50"
+                  title={`Remove ${lang.full}`}
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path
+                      fillRule="evenodd"
+                      d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {languages.length === 0 && !showAddForm && (
+        <p className="text-xs text-gray-400 py-2 italic">
+          No languages yet. Add one to start translating.
+        </p>
+      )}
 
       {/* Add language form */}
       {showAddForm && (
@@ -156,7 +215,7 @@ export function LanguageManager({
             </div>
           </div>
           <p className="text-xs text-gray-400 italic">
-            Code is auto-generated from the name if left blank.
+            New languages are added as secondary (translation) languages.
           </p>
         </div>
       )}

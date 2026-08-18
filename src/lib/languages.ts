@@ -11,6 +11,7 @@ export interface CustomLanguage {
 }
 
 const STORAGE_KEY = "cvcreator:custom-languages";
+const PRIMARY_KEY = "cvcreator:primary-language";
 
 /** Default seed — Hungarian first, then English. */
 export const DEFAULT_LANGUAGES: CustomLanguage[] = [
@@ -104,4 +105,41 @@ export function ensureLanguages(): CustomLanguage[] {
   if (existing.length > 0) return existing;
   saveLanguages(DEFAULT_LANGUAGES);
   return DEFAULT_LANGUAGES;
+}
+
+// ─── Primary language ────────────────────────────────────────────────────────
+
+/** Load the primary language code from localStorage. Returns null if unset. */
+export function loadPrimaryLanguage(): string | null {
+  if (!isBrowser()) return null;
+  try {
+    return localStorage.getItem(PRIMARY_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Persist the primary language code to localStorage. */
+export function savePrimaryLanguage(code: string): void {
+  if (!isBrowser()) return;
+  try {
+    localStorage.setItem(PRIMARY_KEY, code);
+  } catch {
+    // non-fatal
+  }
+}
+
+/**
+ * Ensure a primary language is set. If unset, default to the first language
+ * in the list. Returns the primary language code.
+ */
+export function ensurePrimaryLanguage(languages: CustomLanguage[]): string {
+  const stored = loadPrimaryLanguage();
+  if (stored && languages.find((l) => l.code === stored)) {
+    return stored;
+  }
+  // Default to first language
+  const primary = languages[0]?.code ?? "hu";
+  savePrimaryLanguage(primary);
+  return primary;
 }
