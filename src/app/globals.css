@@ -83,6 +83,13 @@
     }
   }
 
+  /* Prevent SVG icons from being squished in flex containers.
+     Without this, icons in flex buttons/rows can shrink when text is long
+     or viewport is narrow, causing visual distortion. */
+  svg {
+    flex-shrink: 0;
+  }
+
   /* Prevent text selection on drag handles */
   .no-select {
     -webkit-user-select: none;
