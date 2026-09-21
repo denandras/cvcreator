@@ -55,7 +55,7 @@ export function DesignSidebar({
             </span>
           )}
           {saved && (
-            <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+            <span className="text-xs text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">
               Saved
             </span>
           )}
@@ -231,32 +231,72 @@ export function DesignSidebar({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
+            {/* Custom colors — overrides that win over the palette */}
+            <div className="pt-3 border-t border-gray-100 space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
-                  Primary
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                  Custom Colors
                 </label>
-                <div className="relative">
-                  <input
-                    type="color"
-                    value={design.primary_color ?? "#1a1a1a"}
-                    onChange={(e) => onChange("primary_color", e.target.value)}
-                    className="w-full h-9 rounded-lg border border-gray-300 cursor-pointer"
-                  />
-                </div>
+                <p className="text-xs text-gray-400 mb-3">
+                  Pick your own colors — these override the palette. Leave untouched to use the palette default.
+                </p>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
-                  Accent
-                </label>
-                <div className="relative">
-                  <input
-                    type="color"
-                    value={design.accent_color ?? "#14b8a6"}
-                    onChange={(e) => onChange("accent_color", e.target.value)}
-                    className="w-full h-9 rounded-lg border border-gray-300 cursor-pointer"
-                  />
-                </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <ColorField
+                  label="Primary"
+                  hint="Name & entry titles"
+                  value={design.primary_color ?? ""}
+                  fallback={getPalette(design.custom_config?.paletteId as string ?? "slate").primary}
+                  onChange={(v) => onChange("primary_color", v)}
+                  onClear={() => onChange("primary_color", null)}
+                />
+                <ColorField
+                  label="Accent"
+                  hint="Headings & details"
+                  value={design.accent_color ?? ""}
+                  fallback={getPalette(design.custom_config?.paletteId as string ?? "slate").accent}
+                  onChange={(v) => onChange("accent_color", v)}
+                  onClear={() => onChange("accent_color", null)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <ColorField
+                  label="Text"
+                  hint="Body text"
+                  value={(design.custom_config?.textColor as string) ?? ""}
+                  fallback={getPalette(design.custom_config?.paletteId as string ?? "slate").text}
+                  onChange={(v) => onChange("custom_config", { ...(design.custom_config ?? {}), textColor: v })}
+                  onClear={() => onChange("custom_config", { ...(design.custom_config ?? {}), textColor: undefined })}
+                />
+                <ColorField
+                  label="Muted"
+                  hint="Years & organizations"
+                  value={(design.custom_config?.mutedColor as string) ?? ""}
+                  fallback={getPalette(design.custom_config?.paletteId as string ?? "slate").muted}
+                  onChange={(v) => onChange("custom_config", { ...(design.custom_config ?? {}), mutedColor: v })}
+                  onClear={() => onChange("custom_config", { ...(design.custom_config ?? {}), mutedColor: undefined })}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <ColorField
+                  label="Background"
+                  hint="Page background"
+                  value={(design.custom_config?.marginColor as string) ?? ""}
+                  fallback={getPalette(design.custom_config?.paletteId as string ?? "slate").bg}
+                  onChange={(v) => onChange("custom_config", { ...(design.custom_config ?? {}), marginColor: v })}
+                  onClear={() => onChange("custom_config", { ...(design.custom_config ?? {}), marginColor: undefined })}
+                />
+                <ColorField
+                  label="Dividers"
+                  hint="Lines & surfaces"
+                  value={(design.custom_config?.surfaceColor as string) ?? ""}
+                  fallback={getPalette(design.custom_config?.paletteId as string ?? "slate").surface}
+                  onChange={(v) => onChange("custom_config", { ...(design.custom_config ?? {}), surfaceColor: v })}
+                  onClear={() => onChange("custom_config", { ...(design.custom_config ?? {}), surfaceColor: undefined })}
+                />
               </div>
             </div>
           </div>
@@ -430,6 +470,71 @@ export function DesignSidebar({
           {saving ? "Saving..." : "Save Design"}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ─── ColorField: swatch + native picker + hex input + clear ─────────────────
+
+interface ColorFieldProps {
+  label: string;
+  hint: string;
+  /** Current override value, "" when unset */
+  value: string;
+  /** Palette default shown when unset */
+  fallback: string;
+  onChange: (value: string) => void;
+  onClear: () => void;
+}
+
+export function ColorField({ label, hint, value, fallback, onChange, onClear }: ColorFieldProps) {
+  const isSet = Boolean(value);
+  const shown = value || fallback;
+
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
+        {label}
+      </label>
+      <div className="flex items-center gap-1.5">
+        <div className="relative flex-shrink-0">
+          <input
+            type="color"
+            value={shown}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-9 h-9 rounded-lg border border-gray-300 cursor-pointer p-0.5"
+            title={isSet ? "Change custom color" : "Pick a custom color"}
+          />
+        </div>
+        <input
+          type="text"
+          value={value}
+          placeholder={fallback}
+          onChange={(e) => {
+            const v = e.target.value.trim();
+            if (/^#[0-9a-fA-F]{3}$/.test(v) || /^#[0-9a-fA-F]{6}$/.test(v) || v === "") {
+              onChange(v);
+            } else {
+              onChange(v); // let the hex input be loose; preview validates
+            }
+          }}
+          className="w-full min-w-0 rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-mono bg-white focus:border-teal-500 focus:outline-none"
+          spellCheck={false}
+        />
+        {isSet && (
+          <button
+            onClick={onClear}
+            className="flex-shrink-0 text-gray-300 hover:text-teal-600 p-1 rounded hover:bg-teal-50 transition-colors"
+            title="Reset to palette default"
+            aria-label={`Reset ${label} to palette default`}
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+        )}
+      </div>
+      <span className="block text-xs text-gray-400 mt-1">{hint}</span>
     </div>
   );
 }

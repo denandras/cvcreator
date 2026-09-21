@@ -289,6 +289,31 @@ export function DemoEditor() {
     setSections((prev) => prev.filter((s) => s.id !== id));
   };
 
+  const handleDuplicateSection = (id: string) => {
+    setSections((prev) => {
+      const idx = prev.findIndex((s) => s.id === id);
+      if (idx === -1) return prev;
+      const source = prev[idx];
+      const copy: SectionWithEntries = {
+        ...source,
+        id: genDemoId("sec"),
+        title: source.title,
+        entries: source.entries.map((e) => ({
+          ...e,
+          id: genDemoId("entry"),
+          section_id: "",
+          translations: e.translations.map((t) => ({ ...t, id: genDemoId("tr"), entry_id: "" })),
+        })),
+      };
+      // Fix cross-references after id generation
+      for (const e of copy.entries) {
+        e.section_id = copy.id;
+        for (const t of e.translations) t.entry_id = e.id;
+      }
+      return [...prev.slice(0, idx + 1), copy, ...prev.slice(idx + 1)];
+    });
+  };
+
   const handleToggleSection = (id: string, enabled: boolean) => {
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, is_enabled: enabled } : s)));
   };
@@ -515,7 +540,7 @@ export function DemoEditor() {
   const showPreview = viewMode === "preview" || (!isMobile && viewMode === "split");
 
   return (
-    <div className="h-full bg-gray-50 flex flex-col overflow-hidden min-h-0">
+    <div className="h-full bg-stone-100 flex flex-col overflow-hidden min-h-0">
       {/* Top toolbar — icon-only, no text labels */}
       <div className="bg-white border-b border-gray-200 px-3 py-2 flex items-center justify-between flex-shrink-0 z-30" style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}>
         {/* View mode toggle — icons only */}
@@ -596,7 +621,7 @@ export function DemoEditor() {
           <button
             onClick={handleExportPdf}
             disabled={pdfExporting || !sections.length}
-            className="p-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="p-2 rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             aria-label="Export PDF"
             title="Export PDF"
           >
@@ -786,7 +811,7 @@ export function DemoEditor() {
                           {profilePicture && (
                             <button
                               onClick={handlePhotoRemove}
-                              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
                             >
                               Remove
                             </button>
@@ -796,7 +821,7 @@ export function DemoEditor() {
                           Photo stays in your browser only — not uploaded to any server.
                         </p>
                         {photoError && (
-                          <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1">
+                          <p className="text-xs text-gray-700 bg-teal-50 rounded px-2 py-1">
                             {photoError}
                           </p>
                         )}
@@ -845,6 +870,7 @@ export function DemoEditor() {
                           sensors={sensors}
                           onUpdate={(patch) => handleUpdateSection(section.id, patch)}
                           onDelete={() => handleDeleteSection(section.id)}
+                          onDuplicate={() => handleDuplicateSection(section.id)}
                           onToggle={(enabled) => handleToggleSection(section.id, enabled)}
                           onSortModeChange={(mode) => handleSortModeChange(section.id, mode)}
                           onAddEntry={() => handleAddEntry(section.id)}
@@ -889,7 +915,7 @@ export function DemoEditor() {
           {showPreview && (
             <div
               ref={previewRef}
-              className={`overflow-y-auto bg-gray-100 min-w-0 min-h-0 ${
+              className={`overflow-y-auto bg-stone-200/70 min-w-0 min-h-0 ${
                 viewMode === "split"
                   ? "flex-1 lg:h-full lg:w-1/2 lg:flex-initial"
                   : "flex-1 h-full"

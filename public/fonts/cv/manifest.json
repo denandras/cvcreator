@@ -1,0 +1,100 @@
+{
+ "inter": {
+  "400": "inter-400.ttf",
+  "700": "inter-700.ttf",
+  "400-italic": "inter-400-italic.ttf",
+  "700-italic": "inter-700-italic.ttf"
+ },
+ "plus-jakarta": {
+  "400": "plus-jakarta-400.ttf",
+  "700": "plus-jakarta-700.ttf"
+ },
+ "source-sans": {
+  "400": "source-sans-400.ttf",
+  "700": "source-sans-700.ttf",
+  "400-italic": "source-sans-400-italic.ttf",
+  "700-italic": "source-sans-700-italic.ttf"
+ },
+ "lora": {
+  "400": "lora-400.ttf",
+  "700": "lora-700.ttf",
+  "400-italic": "lora-400-italic.ttf",
+  "700-italic": "lora-700-italic.ttf"
+ },
+ "garamond": {
+  "400": "garamond-400.ttf",
+  "700": "garamond-700.ttf",
+  "400-italic": "garamond-400-italic.ttf",
+  "700-italic": "garamond-700-italic.ttf"
+ },
+ "merriweather": {
+  "400": "merriweather-400.ttf",
+  "700": "merriweather-700.ttf",
+  "400-italic": "merriweather-400-italic.ttf",
+  "700-italic": "merriweather-700-italic.ttf"
+ },
+ "manrope": {
+  "400": "manrope-400.ttf",
+  "700": "manrope-700.ttf"
+ },
+ "noto-sans": {
+  "400": "noto-sans-400.ttf",
+  "700": "noto-sans-700.ttf",
+  "400-italic": "noto-sans-400-italic.ttf",
+  "700-italic": "noto-sans-700-italic.ttf"
+ },
+ "poppins": {
+  "400": "poppins-400.ttf",
+  "700": "poppins-700.ttf",
+  "400-italic": "poppins-400-italic.ttf",
+  "700-italic": "poppins-700-italic.ttf"
+ },
+ "montserrat": {
+  "400": "montserrat-400.ttf",
+  "700": "montserrat-700.ttf",
+  "400-italic": "montserrat-400-italic.ttf",
+  "700-italic": "montserrat-700-italic.ttf"
+ },
+ "roboto": {
+  "400": "roboto-400.ttf",
+  "700": "roboto-700.ttf",
+  "400-italic": "roboto-400-italic.ttf",
+  "700-italic": "roboto-700-italic.ttf"
+ },
+ "open-sans": {
+  "400": "open-sans-400.ttf",
+  "700": "open-sans-700.ttf",
+  "400-italic": "open-sans-400-italic.ttf",
+  "700-italic": "open-sans-700-italic.ttf"
+ },
+ "playfair": {
+  "400": "playfair-400.ttf",
+  "700": "playfair-700.ttf",
+  "400-italic": "playfair-400-italic.ttf",
+  "700-italic": "playfair-700-italic.ttf"
+ },
+ "crimson": {
+  "400": "crimson-400.ttf",
+  "700": "crimson-700.ttf",
+  "400-italic": "crimson-400-italic.ttf",
+  "700-italic": "crimson-700-italic.ttf"
+ },
+ "raleway": {
+  "400": "raleway-400.ttf",
+  "700": "raleway-700.ttf",
+  "400-italic": "raleway-400-italic.ttf",
+  "700-italic": "raleway-700-italic.ttf"
+ },
+ "karla": {
+  "400": "karla-400.ttf",
+  "700": "karla-700.ttf",
+  "400-italic": "karla-400-italic.ttf",
+  "700-italic": "karla-700-italic.ttf"
+ },
+ "ibm-plex": {
+  "400": "ibm-plex-400.ttf",
+  "700": "ibm-plex-700.ttf",
+  "400-italic": "ibm-plex-400-italic.ttf",
+  "700-italic": "ibm-plex-700-italic.ttf"
+ }
+}

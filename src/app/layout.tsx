@@ -29,7 +29,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased bg-gray-50 text-gray-900 h-screen h-[100dvh] overflow-hidden overscroll-none">
+      <body className="antialiased bg-stone-100 text-stone-900 h-screen h-[100dvh] overflow-hidden overscroll-none">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

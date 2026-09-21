@@ -165,7 +165,7 @@ export function TranslationPanel({
                         {secondaryTranslation && !isEditing && (
                           <button
                             onClick={() => onDeleteTranslation(entry.id, section.id, secondaryLang)}
-                            className="text-xs text-red-400 hover:text-red-600"
+                            className="text-xs text-gray-400 hover:text-teal-600"
                             title="Remove translation"
                           >
                             remove

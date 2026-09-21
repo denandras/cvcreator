@@ -150,7 +150,7 @@ export function LanguageManager({
                 </button>
                 <button
                   onClick={() => handleRemove(lang.code)}
-                  className="text-gray-300 hover:text-red-500 transition-colors p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg hover:bg-red-50"
+                  className="text-gray-300 hover:text-teal-600 transition-colors p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg hover:bg-teal-50"
                   title={`Remove ${lang.full}`}
                 >
                   <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">

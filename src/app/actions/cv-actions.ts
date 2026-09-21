@@ -275,3 +275,107 @@ export async function getTranslations(
   if (error) throw new Error(`Failed to fetch translations: ${error.message}`);
   return (data as CVTranslation[]) || [];
 }
+
+// ─── Section duplication ────────────────────────────────────────────────────
+
+/**
+ * Duplicate a section with all entries and translations. The copy is
+ * inserted right after the original (sort_order = original + 1, pushing
+ * later sections down) and starts enabled with the same layout config.
+ */
+export async function duplicateSection(sectionId: string): Promise<CVSection> {
+  await requireAuth();
+  const supabase = await createAuthClient();
+
+  // 1. Load the source section
+  const { data: source, error: srcErr } = await supabase
+    .from("cv_sections")
+    .select("*")
+    .eq("id", sectionId)
+    .single();
+  if (srcErr || !source) throw new Error(`Failed to load section: ${srcErr?.message}`);
+  const src = source as CVSection;
+
+  // 2. Shift sort_order of all sections after the original to make room
+  const { data: later, error: laterErr } = await supabase
+    .from("cv_sections")
+    .select("id, sort_order")
+    .eq("cv_id", src.cv_id)
+    .gt("sort_order", src.sort_order);
+  if (laterErr) throw new Error(`Failed to load sections: ${laterErr.message}`);
+  for (const s of (later as Array<{ id: string; sort_order: number }>) || []) {
+    const { error } = await supabase
+      .from("cv_sections")
+      .update({ sort_order: s.sort_order + 1 })
+      .eq("id", s.id);
+    if (error) throw new Error(`Failed to shift sections: ${error.message}`);
+  }
+
+  // 3. Insert the copy
+  const { data: created, error: createErr } = await supabase
+    .from("cv_sections")
+    .insert({
+      cv_id: src.cv_id,
+      title: src.title,
+      is_enabled: src.is_enabled,
+      sort_order: src.sort_order + 1,
+      entry_sort_mode: src.entry_sort_mode,
+      layout_config: src.layout_config ?? {},
+    })
+    .select()
+    .single();
+  if (createErr) throw new Error(`Failed to duplicate section: ${createErr.message}`);
+  const copy = created as CVSection;
+
+  // 4. Copy entries + translations
+  const { data: entries, error: entriesErr } = await supabase
+    .from("cv_entries")
+    .select("*")
+    .eq("section_id", sectionId)
+    .order("sort_order", { ascending: true });
+  if (entriesErr) throw new Error(`Failed to load entries: ${entriesErr.message}`);
+
+  for (const entry of (entries as CVEntry[]) || []) {
+    const { data: newEntry, error: entryErr } = await supabase
+      .from("cv_entries")
+      .insert({
+        section_id: copy.id,
+        year: entry.year,
+        is_enabled: entry.is_enabled,
+        sort_order: entry.sort_order,
+        data: entry.data ?? {},
+      })
+      .select()
+      .single();
+    if (entryErr) throw new Error(`Failed to duplicate entry: ${entryErr.message}`);
+
+    const { data: translations, error: trErr } = await supabase
+      .from("cv_translations")
+      .select("*")
+      .eq("entry_id", entry.id);
+    if (trErr) throw new Error(`Failed to load translations: ${trErr.message}`);
+
+    for (const tr of (translationsOf(trErr, translations) as CVTranslation[]) || []) {
+      const { error: insErr } = await supabase.from("cv_translations").insert({
+        entry_id: (newEntry as CVEntry).id,
+        language: tr.language,
+        title: tr.title,
+        organization: tr.organization,
+        description: tr.description,
+        data: tr.data ?? {},
+      });
+      if (insErr) throw new Error(`Failed to duplicate translation: ${insErr.message}`);
+    }
+  }
+
+  return copy;
+}
+
+// Small local helper so the loop above stays readable
+function translationsOf(
+  _err: unknown,
+  translations: unknown
+): CVTranslation[] | null {
+  void _err;
+  return translations as CVTranslation[] | null;
+}

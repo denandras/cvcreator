@@ -46,8 +46,11 @@ export function CVPreview({
   const profileRadius = (design.custom_config?.profileRadius as number) ?? 48;
   // Profile image position: "left" (default) or "right"
   const profileImagePosition = (design.custom_config?.profileImagePosition as string) ?? "left";
-  // Margin color as design element — defaults to palette bg
+  // Per-role color overrides — custom values win over the palette
   const pageMarginColor = (design.custom_config?.marginColor as string) ?? palette.bg;
+  const textColor = (design.custom_config?.textColor as string) ?? palette.text;
+  const mutedColor = (design.custom_config?.mutedColor as string) ?? palette.muted;
+  const surfaceColor = (design.custom_config?.surfaceColor as string) ?? palette.surface;
 
   // Auto-pagination state
   const [autoPages, setAutoPages] = useState<SectionWithEntries[][]>([]);
@@ -107,7 +110,7 @@ export function CVPreview({
             className="uppercase tracking-wider font-bold mb-3 px-3 py-1.5"
             style={{
               fontSize: "0.875rem",
-              color: "#fff",
+              color: readableOn(accent),
               backgroundColor: accent,
               borderRadius: `${borderRadius}px`,
               display: "inline-block",
@@ -149,6 +152,27 @@ export function CVPreview({
       .replace(/\n{3,}/g, "\n\n")
       .trim();
 
+  /** Relative luminance (WCAG) — picks readable white/black text on accents */
+  const readableOn = (bg: string): string => {
+    const hex = bg.trim();
+    let r = 0, g = 0, b = 0;
+    if (hex.startsWith("#")) {
+      let body = hex.slice(1);
+      if (body.length === 3) body = body[0] + body[0] + body[1] + body[1] + body[2] + body[2];
+      if (body.length >= 6) {
+        r = parseInt(body.slice(0, 2), 16);
+        g = parseInt(body.slice(2, 4), 16);
+        b = parseInt(body.slice(4, 6), 16);
+      }
+    }
+    const lin = (c: number) => {
+      const s = c / 255;
+      return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+    };
+    const lum = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    return lum > 0.18 ? "#1a1a1a" : "#ffffff";
+  };
+
   const renderEntry = (entry: SectionWithEntries["entries"][0]) => {
     const translation = entry.translations.find((t) => t.language === activeLang);
     const title = sanitizeText(translation?.title ?? "");
@@ -166,18 +190,18 @@ export function CVPreview({
             {title}
           </span>
           {year != null && year !== 0 && (
-            <span className="text-xs font-medium whitespace-nowrap" style={{ color: palette.muted }}>
+            <span className="text-xs font-medium whitespace-nowrap" style={{ color: mutedColor }}>
               {year}
             </span>
           )}
         </div>
         {organization && (
-          <div className="text-sm italic" style={{ color: palette.muted }}>
+          <div className="text-sm italic" style={{ color: mutedColor }}>
             {organization}
           </div>
         )}
         {description && (
-          <div className="text-sm italic mt-1" style={{ color: palette.text, whiteSpace: "pre-line" }}>
+          <div className="text-sm italic mt-1" style={{ color: textColor, whiteSpace: "pre-line" }}>
             {description}
           </div>
         )}
@@ -282,7 +306,7 @@ export function CVPreview({
             <div
               style={{
                 marginTop: "12px",
-                borderBottom: `1px solid ${palette.surface}`,
+                borderBottom: `1px solid ${surfaceColor}`,
               }}
             />
           )}
@@ -291,7 +315,7 @@ export function CVPreview({
           <div
             style={{
               marginBottom: `${spacing.section}px`,
-              borderBottom: `1px solid ${palette.surface}`,
+              borderBottom: `1px solid ${surfaceColor}`,
             }}
           />
         )}
@@ -428,7 +452,7 @@ export function CVPreview({
           <div
             style={{
               fontFamily: fontStack,
-              color: palette.text,
+              color: textColor,
               fontSize: "14px",
             }}
           >
@@ -456,7 +480,7 @@ export function CVPreview({
                 overflow: useAutoPaginate ? "hidden" : "visible",
                 padding: `${pageMargin}px`,
                 fontFamily: fontStack,
-                color: palette.text,
+                color: textColor,
                 backgroundColor: pageMarginColor,
                 borderRadius: `${Math.min(borderRadius, 4)}px`,
                 fontSize: "14px",

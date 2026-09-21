@@ -32,6 +32,7 @@ import {
   createSection,
   updateSection,
   deleteSection,
+  duplicateSection,
   toggleSectionEnabled,
   reorderSections,
   setEntrySortMode,
@@ -244,6 +245,27 @@ export function EditorClient() {
       setSections((prev) => prev.filter((s) => s.id !== id));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete section");
+    }
+  };
+
+  const handleDuplicateSection = async (id: string) => {
+    try {
+      const copy = await duplicateSection(id);
+      const source = sections.find((s) => s.id === id);
+      if (!source) return;
+      const duped: SectionWithEntries = {
+        ...copy,
+        entries: source.entries.map((e) => ({
+          ...e,
+          id: `${copy.id}:${e.id}`,
+          section_id: copy.id,
+          translations: e.translations.map((t) => ({ ...t, id: `${copy.id}:${t.id}`, entry_id: `${copy.id}:${e.id}` })),
+        })),
+      };
+      const idx = sections.findIndex((s) => s.id === id);
+      setSections((prev) => [...prev.slice(0, idx + 1), duped, ...prev.slice(idx + 1)]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to duplicate section");
     }
   };
 
@@ -630,7 +652,7 @@ export function EditorClient() {
   const showPreview = viewMode === "preview" || (!isMobile && viewMode === "split");
 
   return (
-    <div className="h-full bg-gray-50 flex flex-col overflow-hidden min-h-0">
+    <div className="h-full bg-stone-100 flex flex-col overflow-hidden min-h-0">
       {/* Top toolbar — icon-only, no text labels */}
       <div className="bg-white border-b border-gray-200 px-3 py-2 flex items-center justify-between flex-shrink-0 z-30" style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}>
         {/* View mode toggle — icons only */}
@@ -699,7 +721,7 @@ export function EditorClient() {
           <button
             onClick={handleExportPdf}
             disabled={pdfExporting || !sections.length}
-            className="p-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="p-2 rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             aria-label="Export PDF"
             title="Export PDF"
           >
@@ -731,9 +753,9 @@ export function EditorClient() {
 
       {/* Error banner */}
       {error && (
-        <div className="mx-3 sm:mx-4 mt-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm flex justify-between items-center flex-shrink-0">
+        <div className="mx-3 sm:mx-4 mt-2 p-3 bg-teal-50 text-gray-800 border border-teal-200 rounded-lg text-sm flex justify-between items-center flex-shrink-0">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-900 font-bold flex-shrink-0 ml-2">
+          <button onClick={() => setError(null)} className="text-gray-500 font-bold flex-shrink-0 ml-2">
             x
           </button>
         </div>
@@ -920,7 +942,7 @@ export function EditorClient() {
                             {profilePicture && (
                               <button
                                 onClick={handlePhotoRemove}
-                                className="block text-xs text-red-500 hover:text-red-700"
+                                className="block text-xs text-gray-500 hover:text-gray-700"
                               >
                                 Remove photo
                               </button>
@@ -935,7 +957,7 @@ export function EditorClient() {
                           <span className="text-xs text-amber-700 italic">Your photo stays in this browser only. It is never uploaded to a server.</span>
                         </div>
                         {photoError && (
-                          <div className="mt-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">
+                          <div className="mt-2 text-xs text-gray-700 bg-teal-50 rounded-lg px-3 py-2">
                             {photoError}
                           </div>
                         )}
@@ -983,6 +1005,7 @@ export function EditorClient() {
                               sensors={sensors}
                               onUpdate={(patch) => handleUpdateSection(section.id, patch)}
                               onDelete={() => handleDeleteSection(section.id)}
+                              onDuplicate={() => handleDuplicateSection(section.id)}
                               onToggle={(enabled) => handleToggleSection(section.id, enabled)}
                               onSortModeChange={(mode) => handleSortModeChange(section.id, mode)}
                               onAddEntry={() => handleAddEntry(section.id)}
@@ -1022,7 +1045,7 @@ export function EditorClient() {
               {/* Preview pane */}
               {showPreview && (
                 <div
-                  className={`overflow-y-auto bg-gray-100 min-w-0 min-h-0 ${
+                  className={`overflow-y-auto bg-stone-200/70 min-w-0 min-h-0 ${
                     viewMode === "split"
                       ? "flex-1 lg:h-full lg:w-1/2 lg:flex-initial"
                       : "flex-1 h-full"
@@ -1059,6 +1082,7 @@ export interface SortableSectionCardProps {
   sensors: ReturnType<typeof useSensors>;
   onUpdate: (patch: Partial<SectionWithEntries>) => void;
   onDelete: () => void;
+  onDuplicate?: () => void;
   onToggle: (enabled: boolean) => void;
   onSortModeChange: (mode: EntrySortMode) => void;
   onAddEntry: () => void;
@@ -1160,7 +1184,7 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
             </select>
           </div>
 
-          {/* Expand/collapse + Delete */}
+          {/* Expand/collapse + Duplicate + Delete */}
           <div className="flex items-center gap-1 flex-shrink-0">
             <button
               onClick={() => setExpanded(!expanded)}
@@ -1170,9 +1194,23 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
               {expanded ? "\u2212" : "+"}
             </button>
 
+            {props.onDuplicate && (
+              <button
+                onClick={props.onDuplicate}
+                className="text-gray-400 hover:text-teal-600 hover:bg-teal-50 p-2 md:p-1.5 text-sm rounded-lg md:rounded transition-colors touch-target"
+                title="Duplicate section"
+                aria-label="Duplicate section"
+              >
+                <svg className="w-5 h-5 md:w-4 md:h-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z" />
+                  <path d="M4 5a2 2 0 012-2h6a2 2 0 012 2v1H8a3 3 0 00-3 3v5H6a2 2 0 01-2-2V5z" />
+                </svg>
+              </button>
+            )}
+
             <button
               onClick={props.onDelete}
-              className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 md:p-1.5 text-sm rounded-lg md:rounded transition-colors touch-target"
+              className="text-gray-400 hover:text-teal-700 hover:bg-teal-50 p-2 md:p-1.5 text-sm rounded-lg md:rounded transition-colors touch-target"
               title="Delete section"
               aria-label="Delete section"
             >
@@ -1272,21 +1310,21 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
       {/* Page break indicator */}
       {props.hasPageBreakAfter ? (
         <div className="flex items-center justify-center py-2">
-          <div className="flex-1 border-t-2 border-dashed border-red-300" />
-          <span className="mx-2 text-xs text-red-400 font-medium">Page break</span>
+          <div className="flex-1 border-t-2 border-dashed border-teal-300" />
+          <span className="mx-2 text-xs text-teal-500 font-medium">Page break</span>
           <button
             onClick={props.onRemovePageBreak}
-            className="text-xs text-red-400 hover:text-red-600 mx-1"
+            className="text-xs text-teal-400 hover:text-teal-600 mx-1"
           >
             remove
           </button>
-          <div className="flex-1 border-t-2 border-dashed border-red-300" />
+          <div className="flex-1 border-t-2 border-dashed border-teal-300" />
         </div>
       ) : (
         <div className="flex justify-center -my-1 relative z-10">
           <button
             onClick={props.onAddPageBreak}
-            className="text-xs text-gray-300 hover:text-red-400 opacity-0 hover:opacity-100 transition-opacity py-0.5"
+            className="text-xs text-gray-300 hover:text-teal-500 opacity-0 hover:opacity-100 transition-opacity py-0.5"
           >
             + page break
           </button>
@@ -1447,7 +1485,7 @@ export function SortableEntryRow({
 
       <button
         onClick={onDelete}
-        className="text-red-400 hover:text-red-600 mt-1 p-2 md:p-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0 rounded-lg md:rounded-none hover:bg-red-50 md:hover:bg-transparent touch-target"
+        className="text-gray-400 hover:text-gray-700 mt-1 p-2 md:p-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0 rounded-lg md:rounded-none hover:bg-teal-50 md:hover:bg-transparent touch-target"
         title="Delete entry"
         aria-label="Delete entry"
       >

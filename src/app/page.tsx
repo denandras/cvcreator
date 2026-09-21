@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <main className="h-full overflow-y-auto flex flex-col items-center justify-center p-4 sm:p-8 bg-gradient-to-br from-teal-50/30 via-gray-50 to-gray-100">
+    <main className="h-full overflow-y-auto flex flex-col items-center justify-center p-4 sm:p-8 bg-stone-100">
       <div className="max-w-2xl w-full text-center space-y-8 sm:space-y-10">
         {/* Hero badge */}
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-teal-50 border border-teal-200 text-teal-700 text-sm font-medium">
@@ -13,15 +13,15 @@ export default function Home() {
         </div>
 
         <div className="space-y-4">
-          <h1 className="text-4xl sm:text-5xl sm:text-6xl font-bold tracking-tight text-gray-900">
+          <h1 className="text-4xl sm:text-5xl sm:text-6xl font-bold tracking-tight text-stone-900">
             Create your{" "}
             <span className="text-teal-600">CV</span>
             <br className="sm:hidden" />
             {" "}with confidence
           </h1>
-          <p className="text-base sm:text-lg text-gray-500 max-w-md mx-auto leading-relaxed">
+          <p className="text-base sm:text-lg text-stone-500 max-w-md mx-auto leading-relaxed">
             Build polished, professional CVs with live preview, multilingual
-            support, and one-click PDF export.
+            support, and one-click vector PDF export.
           </p>
         </div>
 
@@ -34,14 +34,14 @@ export default function Home() {
           </Link>
           <Link
             href="/signin"
-            className="rounded-xl border border-gray-300 px-8 py-3.5 font-semibold text-gray-700 hover:bg-white hover:border-gray-400 transition-all bg-white/50"
+            className="rounded-xl border border-stone-300 px-8 py-3.5 font-semibold text-stone-700 hover:bg-white hover:border-stone-400 transition-all bg-white/60"
           >
             Sign In
           </Link>
         </div>
 
         <div className="pt-2">
-          <p className="text-sm text-gray-400 mb-2">Just want to look around?</p>
+          <p className="text-sm text-stone-400 mb-2">Just want to look around?</p>
           <Link
             href="/demo"
             className="inline-flex items-center gap-1.5 text-teal-600 hover:text-teal-700 font-medium underline-offset-2 hover:underline"
@@ -58,9 +58,9 @@ export default function Home() {
           {[
             { icon: "M3 5h12M3 12h18M3 19h18", label: "Live Preview" },
             { icon: "M12 6v6m0 0v6m0-6h6m-6 0H6", label: "Multilingual" },
-            { icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", label: "PDF Export" },
+            { icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", label: "Vector PDF Export" },
           ].map((f) => (
-            <div key={f.label} className="flex flex-col items-center gap-2 text-gray-500">
+            <div key={f.label} className="flex flex-col items-center gap-2 text-stone-500">
               <svg className="w-6 h-6 text-teal-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d={f.icon} />
               </svg>

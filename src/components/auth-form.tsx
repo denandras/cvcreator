@@ -61,7 +61,7 @@ export function AuthForm({ initialMode = "signin" }: { initialMode?: "signin" | 
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg p-2">{error}</p>
+            <p className="text-sm text-gray-800 bg-teal-50 border border-teal-200 rounded-lg p-2">{error}</p>
           )}
 
           <button
