@@ -15,8 +15,14 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: string | null }>;
+  signIn: (
+    email: string,
+    password: string
+  ) => Promise<{ error: string | null; needsConfirmation: boolean }>;
+  signUp: (
+    email: string,
+    password: string
+  ) => Promise<{ error: string | null; needsConfirmation: boolean }>;
   signOut: () => Promise<void>;
 }
 
@@ -28,7 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -36,11 +42,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    } = supabase.auth.onAuthStateChange(
+      (_event: unknown, session: Session | null) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
+    );
 
     return () => subscription.unsubscribe();
   }, []);
@@ -50,12 +58,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password,
     });
-    return { error: error?.message ?? null };
+    const notConfirmed =
+      error !== null && /email not confirmed/i.test(error.message);
+    return {
+      error: error?.message ?? null,
+      needsConfirmation: notConfirmed,
+    };
   };
 
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email, password });
-    return { error: error?.message ?? null };
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    // When email confirmation is on and no session is returned, the user
+    // must click the link in the confirmation email first.
+    const needsConfirmation = !error && !data.session;
+    return {
+      error: error?.message ?? null,
+      needsConfirmation: needsConfirmation ?? false,
+    };
   };
 
   const signOut = async () => {

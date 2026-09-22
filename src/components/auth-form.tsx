@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 
 export function AuthForm({ initialMode = "signin" }: { initialMode?: "signin" | "signup" }) {
   const { signIn, signUp } = useAuth();
+  const router = useRouter();
   const [mode, setMode] = useState<"signin" | "signup">(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,8 +20,18 @@ export function AuthForm({ initialMode = "signin" }: { initialMode?: "signin" | 
     setLoading(true);
 
     const fn = mode === "signin" ? signIn : signUp;
-    const { error } = await fn(email, password);
+    const { error, needsConfirmation } = await fn(email, password);
     if (error) setError(error);
+    if (needsConfirmation) {
+      setError("Check your inbox — click the confirmation link to activate your account.");
+    }
+    if (!error && !needsConfirmation) {
+      // Session is now in cookies — revalidate the server component tree
+      // and go to the editor.
+      router.replace("/editor");
+      router.refresh();
+      return;
+    }
     setLoading(false);
   };
 
