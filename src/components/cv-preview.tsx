@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { SectionWithEntries, CVDesign } from "@/types/database";
 import {
   getFontStack,
@@ -336,10 +336,39 @@ export function CVPreview({
     manualPages.push(enabledSectionsWithEntries.slice(start));
   }
 
-  // Auto-pagination: measure content and split into A4 pages
-  // We render a hidden measurement container, then distribute sections
-  // across pages based on measured heights.
+  // Auto-pagination: measure content and split into A4 pages.
+  // Measures at FLOW-ITEM level (headings + entries), not whole sections —
+  // long sections flow across pages instead of overflowing into the void.
+  // Mirrors the PDF export's flowLayout: heading never orphaned, two-column
+  // blocks move as one unit, bottom limit = PAGE_HEIGHT - 2*margin.
   const useAutoPaginate = pageBreaks.length === 0;
+
+  interface FlowItem {
+    kind: "heading" | "entry";
+    section: SectionWithEntries;
+    entry?: SectionWithEntries["entries"][0];
+    /** true = whole two-column block, must not split */
+    block?: boolean;
+  }
+
+  // Build the flow item list (same shape as the PDF exporter's flowLayout)
+  const isTwoColumnRef = useRef(isTwoColumn);
+  isTwoColumnRef.current = isTwoColumn;
+  const flowItems: FlowItem[] = useMemo(() => {
+    const items: FlowItem[] = [];
+    for (const section of enabledSectionsWithEntries) {
+      items.push({ kind: "heading", section });
+      const twoCol = isTwoColumnRef.current(section);
+      if (twoCol && section.entries.length > 1) {
+        items.push({ kind: "entry", section, block: true });
+      } else {
+        for (const entry of section.entries) {
+          items.push({ kind: "entry", section, entry });
+        }
+      }
+    }
+    return items;
+  }, [enabledSectionsWithEntries]);
 
   useEffect(() => {
     if (!useAutoPaginate || !measureRef.current) {
@@ -351,51 +380,87 @@ export function CVPreview({
     const innerContent = measureEl.firstElementChild as HTMLElement;
     if (!innerContent) return;
 
-    const contentHeight = innerContent.scrollHeight;
     const availableHeight = PAGE_HEIGHT - pageMargin * 2;
 
+    const contentHeight = innerContent.scrollHeight;
     if (contentHeight <= availableHeight) {
       // Fits on one page
       setAutoPages([enabledSectionsWithEntries]);
       return;
     }
 
-    // Measure each section's height
-    const sectionEls = Array.from(innerContent.children) as HTMLElement[];
-    // First child is the profile header — account for it on page 1
+    // Measure each flow element from the rendered measurement DOM.
+    // The measurement DOM renders flat flow items in order:
+    // [profile header?] then for each section: heading wrapper, entry wrappers.
+    const els = Array.from(innerContent.children) as HTMLElement[];
+    let idx = 0;
     let profileHeaderHeight = 0;
-    let firstSectionIdx = 0;
-    if (sectionEls.length > 0 && !sectionEls[0].dataset.sectionId) {
-      profileHeaderHeight = sectionEls[0].offsetHeight + spacing.section;
-      firstSectionIdx = 1;
+    if (els.length > 0 && els[0].dataset.flow === "profile") {
+      profileHeaderHeight = els[0].offsetHeight + spacing.section;
+      idx = 1;
     }
 
-    const sectionHeights: number[] = [];
-    for (let i = firstSectionIdx; i < sectionEls.length; i++) {
-      sectionHeights.push(sectionEls[i].offsetHeight + spacing.section);
-    }
-
-    // Distribute sections across pages
+    // Distribute flow items across pages with orphan protection
     const pages: SectionWithEntries[][] = [];
-    let currentPage: SectionWithEntries[] = [];
+    let pageItems: FlowItem[] = [];
     let currentHeight = profileHeaderHeight;
 
-    for (let i = 0; i < sectionHeights.length; i++) {
-      const sectionHeight = sectionHeights[i];
-      if (currentHeight + sectionHeight > availableHeight && currentPage.length > 0) {
-        // Start a new page
-        pages.push(currentPage);
-        currentPage = [enabledSectionsWithEntries[i]];
-        currentHeight = sectionHeight;
-      } else {
-        currentPage.push(enabledSectionsWithEntries[i]);
-        currentHeight += sectionHeight;
+    const flush = () => {
+      if (pageItems.length === 0) return;
+      const pageSections: SectionWithEntries[] = [];
+      const seen = new Map<string, SectionWithEntries>();
+      for (const it of pageItems) {
+        const s = it.section;
+        if (!seen.has(s.id)) {
+          const group: SectionWithEntries = { ...s, entries: [] };
+          seen.set(s.id, group);
+          pageSections.push(group);
+        }
+        if (it.entry) {
+          seen.get(s.id)!.entries.push(it.entry);
+        } else if (it.block) {
+          // Two-column block: all entries of the section move together
+          seen.get(s.id)!.entries.push(...s.entries);
+        }
       }
-    }
-    if (currentPage.length > 0) pages.push(currentPage);
+      pages.push(pageSections);
+      pageItems = [];
+    };
 
-    setAutoPages(pages);
-  }, [useAutoPaginate, enabledSectionsWithEntries, pageMargin, spacing.section, fontStack, activeLang]);
+    for (let i = 0; i < flowItems.length; i++) {
+      const item = flowItems[i];
+      const el = els[idx];
+      idx += 1;
+      const height = (el ? el.offsetHeight : 0) + (item.kind === "heading" ? spacing.section : spacing.item);
+
+      if (item.kind === "heading") {
+        // Orphan protection: heading must fit with its first content item
+        const next = flowItems[i + 1];
+        const withNext =
+          next && next.kind === "entry" && next.section.id === item.section.id
+            ? height + (els[idx]?.offsetHeight ?? 0) + spacing.item
+            : height;
+        if (currentHeight + withNext > availableHeight && pageItems.length > 0) {
+          flush();
+          currentHeight = 0;
+        }
+        pageItems.push(item);
+        currentHeight += height;
+        continue;
+      }
+
+      // Entry (single-col) or whole two-column block
+      if (currentHeight + height > availableHeight && pageItems.length > 0) {
+        flush();
+        currentHeight = 0;
+      }
+      pageItems.push(item);
+      currentHeight += height;
+    }
+    flush();
+
+    setAutoPages(pages.length > 0 ? pages : [enabledSectionsWithEntries]);
+  }, [useAutoPaginate, flowItems, pageMargin, spacing.section, spacing.item, fontStack, activeLang, enabledSectionsWithEntries]);
 
   // Use auto pages if available, otherwise manual
   const pages = useAutoPaginate && autoPages.length > 0 ? autoPages : manualPages;
@@ -436,7 +501,10 @@ export function CVPreview({
 
   return (
     <>
-      {/* Hidden measurement container for auto-pagination */}
+      {/* Hidden measurement container for auto-pagination.
+          Renders FLAT flow items in order — each flow item is a direct child
+          element tagged with data-flow — so the pagination effect can measure
+          every heading/entry independently (not whole sections). */}
       {useAutoPaginate && (
         <div
           ref={measureRef}
@@ -456,8 +524,29 @@ export function CVPreview({
               fontSize: "14px",
             }}
           >
-            {renderProfileHeader()}
-            {enabledSectionsWithEntries.map(renderSection)}
+            <div data-flow="profile">{renderProfileHeader()}</div>
+            {flowItems.map((it, i) =>
+              it.kind === "heading" ? (
+                <div key={"m-h-" + it.section.id} data-flow="heading">
+                  {renderHeading(sanitizeText(it.section.title))}
+                </div>
+              ) : it.block ? (
+                <div key={"m-b-" + it.section.id} data-flow="block">
+                  <div style={{ display: "flex", gap: `${spacing.item * 4}px` }}>
+                    <div style={{ flex: 1 }}>
+                      {it.section.entries.slice(0, Math.ceil(it.section.entries.length / 2)).map(renderEntry)}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      {it.section.entries.slice(Math.ceil(it.section.entries.length / 2)).map(renderEntry)}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div key={"m-e-" + it.entry!.id} data-flow="entry">
+                  {renderEntry(it.entry!)}
+                </div>
+              )
+            )}
           </div>
         </div>
       )}
