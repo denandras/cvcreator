@@ -604,11 +604,9 @@ function renderSection(
     }
   }
 
-  // Split-block chunks (mid-section) stay tight; real section ends keep the
-  // full gap. The next section's heading renders with its own spacing anyway.
-  const meta = section as SectionWithEntries & { twoColCounts?: unknown };
-  const isMidSectionChunk = isContinuation && meta.twoColCounts !== undefined;
-  if (!isMidSectionChunk) {
+  // Continuations (rows flowed from the previous page) keep a tight gap;
+  // real section ends keep the full section gap.
+  if (!isContinuation) {
     y += px2pt(spacing.section);
   } else {
     y += px2pt(spacing.item) + px2pt(2);
@@ -698,14 +696,9 @@ interface FlowItem {
   kind: "heading" | "entry";
   section: SectionWithEntries;
   entry?: SectionWithEntries["entries"][0];
-  /** true = a two-column block (may span multiple flow items when split) */
+  /** Two-column row item: blockRange is the single row [r, r+1) */
   block?: boolean;
-  /** For split two-column blocks: [start, end) row range within the section */
   blockRange?: { start: number; end: number };
-  /** First chunk of a split two-column block */
-  isBlockHead?: boolean;
-  /** Last chunk of a split two-column block */
-  isBlockTail?: boolean;
 }
 
 /** Height of the heading + trailing gap in pt (heading 18pt font + 12px gap + safety) */
@@ -768,67 +761,29 @@ function flowLayout(
     measured.push({ item: { kind: "heading", section }, height: HEADING_BLOCK_PT });
 
     if (twoCol && section.entries.length > 1) {
-      // Two-column: keep the pair-rows in sync when splitting (col2 may
-      // continue on a later page as a balanced continuation block).
+      // Two-column: one flow item per ROW (col1[r] next to col2[r]) so rows
+      // flow across pages naturally. flush() recombines rows per page.
       const colGap = px2pt(spacing.item * 4);
       const colWidth = (contentWidth - colGap) / 2;
       const half = Math.ceil(section.entries.length / 2);
       const col1 = section.entries.slice(0, half);
       const col2 = section.entries.slice(half);
-
-      // Measure cumulative heights so we can split at a row boundary
-      const h1: number[] = col1.map((e) => measureEntry(e, colWidth));
-      const h2: number[] = col2.map((e) => measureEntry(e, colWidth));
-
-      // Row k renders col1[k] next to col2[k]; the visual height of the
-      // block through row k is the max of the two column prefixes.
       const rows = Math.max(col1.length, col2.length);
-      const rowHeights: number[] = [];
+      const h1 = col1.map((e) => measureEntry(e, colWidth));
+      const h2 = col2.map((e) => measureEntry(e, colWidth));
       let acc1 = 0;
       let acc2 = 0;
       for (let r = 0; r < rows; r++) {
         if (r < col1.length) acc1 += h1[r];
         if (r < col2.length) acc2 += h2[r];
-        rowHeights.push(Math.max(acc1, acc2) - (rowHeights.reduce((a, b) => a + b, 0)));
-      }
-
-      // Prefix sums of visual height
-      const prefix: number[] = [];
-      let acc = 0;
-      for (const rh of rowHeights) {
-        acc += rh;
-        prefix.push(acc);
-      }
-
-      // Split into chunks that each fit within a full page of vertical space
-      const pageRoom = ctx.pageHeightPt - pageTop * 2 - HEADING_BLOCK_PT;
-      let start = 0;
-      while (start < rows) {
-        // Find the furthest row index (inclusive) fitting in pageRoom
-        const base = start === 0 ? 0 : prefix[start - 1];
-        let end = start;
-        while (
-          end < rows &&
-          (prefix[end] - base <= pageRoom || end === start)
-        ) {
-          end++;
-        }
-        const chunkRowsEnd = end - 1; // inclusive
-        const isFirstChunk = start === 0;
-        const isLastChunk = chunkRowsEnd >= rows - 1;
-
+        const prev = measured
+          .filter((m) => m.item.kind === "entry" && m.item.block && m.item.section.id === section.id)
+          .reduce((a, b) => a + b.height, 0);
+        const rowH = Math.max(acc1, acc2) - prev;
         measured.push({
-          item: {
-            kind: "entry",
-            section,
-            block: true,
-            blockRange: { start, end: chunkRowsEnd + 1 },
-            isBlockHead: isFirstChunk,
-            isBlockTail: isLastChunk,
-          },
-          height: (prefix[chunkRowsEnd] - base),
+          item: { kind: "entry", section, block: true, blockRange: { start: r, end: r + 1 } },
+          height: rowH,
         });
-        start = chunkRowsEnd + 1;
       }
     } else {
       for (const entry of section.entries) {
@@ -840,7 +795,14 @@ function flowLayout(
     }
   }
 
-  // ── Distribute across pages ──────────────────────────────────────────────
+  // ── Distribute across pages (simple rules) ────────────────────────────────
+  // R1: a section starts on the next page when it would split and fewer than
+  //     2 of its rows fit after the heading on the current page (and the
+  //     section has >= 2 rows). A section that fully fits stays put.
+  // R2: rows/entries flow; a page break happens only when the next item
+  //     genuinely doesn't fit.
+  // R3: no single-row orphan continuation — if only the section's last row
+  //     would land on a new page, the last two rows move together.
   const pages: SectionWithEntries[][] = [];
   let pageItems: Measured[] = [];
   let currentY = pageTop + headerHeightPt;
@@ -871,22 +833,23 @@ function flowLayout(
       if (item.entry) {
         rec.group.entries.push(item.entry);
       } else if (item.block && item.blockRange) {
-        // Split two-column block: push [col1 entries of range, col2 entries
-        // of range] in order, and record counts for the renderer.
-        const { start, end } = item.blockRange;
+        // Two-column row item: push col1[r] then col2[r], accumulate counts
+        const r = item.blockRange.start;
         const half = Math.ceil(s.entries.length / 2);
         const col1 = s.entries.slice(0, half);
         const col2 = s.entries.slice(half);
-        const c1s = col1.slice(start, end);
-        const c2s = col2.slice(start, end);
-        rec.group.entries.push(...c1s, ...c2s);
-
+        if (r < col1.length) rec.group.entries.push(col1[r]);
+        if (r < col2.length) rec.group.entries.push(col2[r]);
         const meta = rec.group as SectionWithEntries & {
           twoColCounts?: { c1: number; c2: number };
         };
-        meta.twoColCounts = { c1: c1s.length, c2: c2s.length };
+        const prev = meta.twoColCounts ?? { c1: 0, c2: 0 };
+        meta.twoColCounts = {
+          c1: prev.c1 + (r < col1.length ? 1 : 0),
+          c2: prev.c2 + (r < col2.length ? 1 : 0),
+        };
       } else if (item.block) {
-        // Whole (unsplittable) two-column block: all entries of the section
+        // Whole two-column block (single row fallback): all entries
         rec.group.entries.push(...s.entries);
       }
     }
@@ -907,14 +870,27 @@ function flowLayout(
     const m = measured[i];
 
     if (m.item.kind === "heading") {
-      // Orphan protection: heading must fit together with its first entry
-      const next = measured[i + 1];
-      const withFirstEntry =
-        next && next.item.kind === "entry" && next.item.section.id === m.item.section.id
-          ? m.height + next.height
-          : m.height;
-
-      if (currentY + withFirstEntry > bottomLimit && pageItems.length > 0) {
+      // R1: count how many of the section's rows fit after the heading.
+      let fitCount = 0;
+      let acc = m.height;
+      for (let j = i + 1; j < measured.length; j++) {
+        const n = measured[j];
+        if (n.item.kind !== "entry" || n.item.section.id !== m.item.section.id) break;
+        if (currentY + acc + n.height <= bottomLimit) {
+          acc += n.height;
+          fitCount++;
+        } else break;
+      }
+      const sectionRows = measured.filter(
+        (n) => n.item.kind === "entry" && n.item.section.id === m.item.section.id
+      ).length;
+      const wouldSplit = fitCount < sectionRows;
+      if (
+        wouldSplit &&
+        fitCount < 2 &&
+        sectionRows >= 2 &&
+        pageItems.length > 0
+      ) {
         flush();
         currentY = pageTop;
       }
@@ -923,12 +899,39 @@ function flowLayout(
       continue;
     }
 
-    // Entry (single-col) or whole two-column block
+    // Entry rows (single-col or two-col row) flow naturally (R2)
     if (currentY + m.height > bottomLimit && pageItems.length > 0) {
+      // R3: avoid a 1-row orphan — if this is the LAST row of its section,
+      // pull the previous row of the same section to the next page too.
+      const isLastRowOfSection =
+        !measured[i + 1] ||
+        measured[i + 1].item.kind === "heading" ||
+        measured[i + 1].item.section.id !== m.item.section.id;
+      if (isLastRowOfSection) {
+        let prevIdx = -1;
+        for (let j = pageItems.length - 1; j >= 0; j--) {
+          const p = pageItems[j].item;
+          if (p.kind === "heading") break;
+          if (p.section.id === m.item.section.id) {
+            prevIdx = j;
+            break;
+          }
+        }
+        if (prevIdx >= 0 && pageItems.length - 1 > prevIdx) {
+          const carried = pageItems.splice(prevIdx);
+          const carriedHeight = carried.reduce((a, b) => a + b.height, 0);
+          flush();
+          currentY = pageTop;
+          pageItems = carried;
+          currentY += carriedHeight;
+          pageItems.push(m);
+          currentY += m.height;
+          continue;
+        }
+      }
       flush();
       currentY = pageTop;
     }
-    // Degenerate guard: single block taller than a page still gets its own page
     pageItems.push(m);
     currentY += m.height;
   }

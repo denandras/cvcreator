@@ -232,16 +232,11 @@ export function CVPreview({
     const twoCol = isTwoColumn(section);
     const isContinuation = (section as SectionWithEntries & { isContinuation?: boolean }).isContinuation === true;
     const meta = section as SectionWithEntries & { twoColCounts?: { c1: number; c2: number } };
-    const isMidSectionChunk = isContinuation && meta.twoColCounts !== undefined;
     return (
       <div
         key={section.id}
         style={{
-          marginBottom: isMidSectionChunk
-            ? `${spacing.item + 2}px`
-            : isContinuation
-              ? `${spacing.item}px`
-              : `${spacing.section}px`,
+          marginBottom: isContinuation ? `${spacing.item}px` : `${spacing.section}px`,
           breakInside: "avoid",
         }}
       >
@@ -372,25 +367,24 @@ export function CVPreview({
   }
 
   // Auto-pagination: measure content and split into A4 pages.
-  // Measures at FLOW-ITEM level (headings + entries), not whole sections —
-  // long sections flow across pages instead of overflowing into the void.
-  // Mirrors the PDF export's flowLayout: heading never orphaned, two-column
-  // blocks move as one unit, bottom limit = PAGE_HEIGHT - 2*margin.
+  // Mirrors the PDF export's flowLayout with the same simple rules:
+  // R1 — a section that would split with <2 rows on the current page starts
+  //      on the next page (a section that fully fits stays put);
+  // R2 — rows flow freely, a break only when an item truly doesn't fit;
+  // R3 — no single-row orphan continuation (last row carries its predecessor).
   const useAutoPaginate = pageBreaks.length === 0;
 
   interface FlowItem {
     kind: "heading" | "entry";
     section: SectionWithEntries;
     entry?: SectionWithEntries["entries"][0];
-    /** true = a two-column block (may span multiple flow items when split) */
+    /** Two-column row item: blockRange is the single row [r, r+1) */
     block?: boolean;
-    /** For split two-column blocks: [start, end) row range within the section */
     blockRange?: { start: number; end: number };
   }
 
   // Build the flow item list (same shape as the PDF exporter's flowLayout).
-  // Two-column sections taller than one page are pre-split into chunks so a
-  // long section (e.g. 27 orchestra jobs) flows across pages without a void.
+  // Two-column sections emit one flow item per ROW so rows flow across pages.
   const isTwoColumnRef = useRef(isTwoColumn);
   isTwoColumnRef.current = isTwoColumn;
   const flowItems: FlowItem[] = useMemo(() => {
@@ -399,28 +393,14 @@ export function CVPreview({
       items.push({ kind: "heading", section });
       const twoCol = isTwoColumnRef.current(section);
       if (twoCol && section.entries.length > 1) {
-        // Estimate whether the block fits a single page: measured properly
-        // after render; the pre-split is a safety bound (max rows per page).
-        const half = Math.ceil(section.entries.length / 2);
-        // Rough per-row height: entry rows are ~50-90px; use a generous
-        // 120px/row cap so a chunk never overflows one page.
-        const maxRowsPerPage = Math.max(
-          4,
-          Math.floor((PAGE_HEIGHT - pageMargin * 2 - 120) / 120)
-        );
-        const rows = half;
-        if (rows > maxRowsPerPage) {
-          for (let start = 0; start < rows; start += maxRowsPerPage) {
-            const end = Math.min(start + maxRowsPerPage, rows);
-            items.push({
-              kind: "entry",
-              section,
-              block: true,
-              blockRange: { start, end },
-            });
-          }
-        } else {
-          items.push({ kind: "entry", section, block: true });
+        const rows = Math.ceil(section.entries.length / 2);
+        for (let r = 0; r < rows; r++) {
+          items.push({
+            kind: "entry",
+            section,
+            block: true,
+            blockRange: { start: r, end: r + 1 },
+          });
         }
       } else {
         for (const entry of section.entries) {
@@ -429,7 +409,7 @@ export function CVPreview({
       }
     }
     return items;
-  }, [enabledSectionsWithEntries, pageMargin]);
+  }, [enabledSectionsWithEntries]);
 
   useEffect(() => {
     if (!useAutoPaginate || !measureRef.current) {
@@ -461,9 +441,9 @@ export function CVPreview({
       idx = 1;
     }
 
-    // Distribute flow items across pages with orphan protection
+    // Distribute flow items across pages (rules R1-R3)
     const pages: SectionWithEntries[][] = [];
-    let pageItems: FlowItem[] = [];
+    let pageItems: { item: FlowItem; height: number }[] = [];
     let currentHeight = profileHeaderHeight;
 
     const flush = () => {
@@ -473,7 +453,7 @@ export function CVPreview({
         string,
         { group: SectionWithEntries; hasHeading: boolean }
       >();
-      for (const it of pageItems) {
+      for (const { item: it } of pageItems) {
         const s = it.section;
         let rec = seen.get(s.id);
         if (!rec) {
@@ -488,19 +468,23 @@ export function CVPreview({
         if (it.entry) {
           rec.group.entries.push(it.entry);
         } else if (it.block && it.blockRange) {
-          // Split two-column block chunk: push [col1 range, col2 range]
+          // Two-column row item: push col1[r] then col2[r], accumulate counts
+          const r = it.blockRange.start;
           const half = Math.ceil(s.entries.length / 2);
           const col1 = s.entries.slice(0, half);
           const col2 = s.entries.slice(half);
-          const c1s = col1.slice(it.blockRange.start, it.blockRange.end);
-          const c2s = col2.slice(it.blockRange.start, it.blockRange.end);
-          rec.group.entries.push(...c1s, ...c2s);
-          (rec.group as SectionWithEntries & { twoColCounts?: { c1: number; c2: number } }).twoColCounts = {
-            c1: c1s.length,
-            c2: c2s.length,
+          if (r < col1.length) rec.group.entries.push(col1[r]);
+          if (r < col2.length) rec.group.entries.push(col2[r]);
+          const g = rec.group as SectionWithEntries & {
+            twoColCounts?: { c1: number; c2: number };
+          };
+          const prev = g.twoColCounts ?? { c1: 0, c2: 0 };
+          g.twoColCounts = {
+            c1: prev.c1 + (r < col1.length ? 1 : 0),
+            c2: prev.c2 + (r < col2.length ? 1 : 0),
           };
         } else if (it.block) {
-          // Whole two-column block: all entries of the section move together
+          // Whole two-column block fallback: all entries
           rec.group.entries.push(...s.entries);
         }
       }
@@ -523,27 +507,71 @@ export function CVPreview({
       const height = (el ? el.offsetHeight : 0) + (item.kind === "heading" ? spacing.section : spacing.item);
 
       if (item.kind === "heading") {
-        // Orphan protection: heading must fit with its first content item
-        const next = flowItems[i + 1];
-        const withNext =
-          next && next.kind === "entry" && next.section.id === item.section.id
-            ? height + (els[idx]?.offsetHeight ?? 0) + spacing.item
-            : height;
-        if (currentHeight + withNext > availableHeight && pageItems.length > 0) {
+        // R1: a section that would split with <2 rows on this page starts next
+        // els mapping: flow index j consumes measurement element (idx + (j - i)).
+        const rowEls: HTMLElement[] = [];
+        for (let j = i + 1; j < flowItems.length; j++) {
+          const n = flowItems[j];
+          if (n.kind !== "entry" || n.section.id !== item.section.id) break;
+          rowEls.push(els[idx + (j - i)]);
+        }
+        let fitCount = 0;
+        let acc = height;
+        for (const nEl of rowEls) {
+          const nH = (nEl ? nEl.offsetHeight : 0) + spacing.item;
+          if (currentHeight + acc + nH <= availableHeight) {
+            acc += nH;
+            fitCount++;
+          } else break;
+        }
+        const wouldSplit = fitCount < rowEls.length;
+        if (
+          wouldSplit &&
+          fitCount < 2 &&
+          rowEls.length >= 2 &&
+          pageItems.length > 0
+        ) {
           flush();
           currentHeight = 0;
         }
-        pageItems.push(item);
+        pageItems.push({ item, height });
         currentHeight += height;
         continue;
       }
 
-      // Entry (single-col) or whole two-column block
+      // Entry rows flow naturally (R2)
       if (currentHeight + height > availableHeight && pageItems.length > 0) {
+        // R3: no 1-row orphan — last row of a section carries its predecessor
+        const isLastRowOfSection =
+          !flowItems[i + 1] ||
+          flowItems[i + 1].kind === "heading" ||
+          flowItems[i + 1].section.id !== item.section.id;
+        if (isLastRowOfSection) {
+          let prevIdx = -1;
+          for (let j = pageItems.length - 1; j >= 0; j--) {
+            const p = pageItems[j].item;
+            if (p.kind === "heading") break;
+            if (p.section.id === item.section.id) {
+              prevIdx = j;
+              break;
+            }
+          }
+          if (prevIdx >= 0 && pageItems.length - 1 > prevIdx) {
+            const carried = pageItems.splice(prevIdx);
+            const carriedHeight = carried.reduce((a, b) => a + b.height, 0);
+            flush();
+            currentHeight = 0;
+            pageItems = carried;
+            currentHeight += carriedHeight;
+            pageItems.push({ item, height });
+            currentHeight += height;
+            continue;
+          }
+        }
         flush();
         currentHeight = 0;
       }
-      pageItems.push(item);
+      pageItems.push({ item, height });
       currentHeight += height;
     }
     flush();
@@ -620,13 +648,23 @@ export function CVPreview({
                   {renderHeading(sanitizeText(it.section.title))}
                 </div>
               ) : it.block ? (
-                <div key={"m-b-" + it.section.id} data-flow="block">
+                <div key={"m-b-" + it.section.id + "-" + it.blockRange?.start} data-flow="block">
                   <div style={{ display: "flex", gap: `${spacing.item * 4}px` }}>
                     <div style={{ flex: 1 }}>
-                      {it.section.entries.slice(0, it.blockRange?.end ?? Math.ceil(it.section.entries.length / 2)).map(renderEntry)}
+                      {(() => {
+                        const half = Math.ceil(it.section.entries.length / 2);
+                        const r = it.blockRange?.start ?? 0;
+                        const e1 = it.section.entries.slice(0, half)[r];
+                        return e1 ? renderEntry(e1) : null;
+                      })()}
                     </div>
                     <div style={{ flex: 1 }}>
-                      {it.section.entries.slice(it.blockRange?.end ?? Math.ceil(it.section.entries.length / 2)).map(renderEntry)}
+                      {(() => {
+                        const half = Math.ceil(it.section.entries.length / 2);
+                        const r = it.blockRange?.start ?? 0;
+                        const e2 = it.section.entries.slice(half)[r];
+                        return e2 ? renderEntry(e2) : null;
+                      })()}
                     </div>
                   </div>
                 </div>
