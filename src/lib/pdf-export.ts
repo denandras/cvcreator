@@ -416,8 +416,22 @@ function renderHeading(
   y: number
 ): number {
   const { doc, template, accent, primary, borderRadius, pageMargin, contentWidth } = ctx;
-  const fontSize = px2pt(14); // 0.875rem
   const text = title.toUpperCase();
+
+  // Bigger section titles (was 14pt): shrink only if the measured title
+  // would exceed the content width.
+  const fitPt = (basePt: number, padPt: number): number => {
+    if (!text) return basePt;
+    const probe = { ...ctx } as RenderContext;
+    doc.setFont(probe.fontFam ?? "helvetica", "bold");
+    const sizeRatio = doc.getTextWidth(text) / (basePt || 1); // width per pt at base size
+    const avail = contentWidth - padPt * 2;
+    if (sizeRatio * basePt > avail && sizeRatio > 0) {
+      return Math.max(8, (basePt * avail) / (sizeRatio * basePt));
+    }
+    return basePt;
+  };
+  const fontSize = fitPt(px2pt(18), 0);
 
   switch (template.headingStyle) {
     case "underline": {
@@ -455,7 +469,7 @@ function renderHeading(
       return y - fontSize + boxH + px2pt(12);
     }
     case "minimal": {
-      setFont(ctx, "bold", px2pt(12.8));
+      setFont(ctx, "bold", fitPt(px2pt(16), 0));
       setText(ctx, primary);
       doc.text(text, pageMargin, y, { charSpace: 1.2 });
       return y + px2pt(8);
@@ -667,8 +681,8 @@ interface FlowItem {
   block?: boolean;
 }
 
-/** Height of the heading + trailing gap in pt (heading 14pt font + 12px gap + safety) */
-const HEADING_BLOCK_PT = px2pt(14) + px2pt(12) + px2pt(6);
+/** Height of the heading + trailing gap in pt (heading 18pt font + 12px gap + safety) */
+const HEADING_BLOCK_PT = px2pt(18) + px2pt(12) + px2pt(8);
 
 function flowLayout(
   ctx: RenderContext,

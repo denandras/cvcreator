@@ -59,6 +59,8 @@ export function CVPreview({
   // Auto-pagination state
   const [autoPages, setAutoPages] = useState<SectionWithEntries[][]>([]);
   const measureRef = useRef<HTMLDivElement>(null);
+  // Canvas for measuring heading text width (auto-fit size)
+  const fitCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Filter enabled sections and entries
   const enabledSections = sections.filter((s) => s.is_enabled);
@@ -79,13 +81,26 @@ export function CVPreview({
   const headingStyle = template.headingStyle;
 
   const renderHeading = (title: string) => {
+    // Bigger section titles: base size grew from 0.875rem; auto-shrink only
+    // when the measured title would exceed the content width.
+    const fitPx = (basePx: number, padPx: number): number => {
+      if (!title || typeof document === "undefined") return basePx;
+      if (!fitCanvasRef.current) fitCanvasRef.current = document.createElement("canvas");
+      const c = fitCanvasRef.current.getContext("2d");
+      if (!c) return basePx;
+      c.font = `700 ${basePx}px ${fontStack}`;
+      const textW = c.measureText(title.toUpperCase()).width * 1.08; // tracking safety
+      const avail = PAGE_WIDTH - pageMargin * 2 - padPx * 2;
+      if (textW > avail && textW > 0) return Math.max(12, Math.floor((basePx * avail) / textW));
+      return basePx;
+    };
     switch (headingStyle) {
       case "underline":
         return (
           <h2
             className="uppercase tracking-wide font-bold mb-3"
             style={{
-              fontSize: "0.875rem",
+              fontSize: `${fitPx(18, 0)}px`,
               color: primary,
               borderBottom: `2px solid ${accent}`,
               paddingBottom: "4px",
@@ -99,7 +114,7 @@ export function CVPreview({
           <h2
             className="uppercase tracking-wider font-bold mb-3"
             style={{
-              fontSize: "0.875rem",
+              fontSize: `${fitPx(18, 13)}px`,
               color: primary,
               borderLeft: `3px solid ${accent}`,
               paddingLeft: "10px",
@@ -113,7 +128,7 @@ export function CVPreview({
           <h2
             className="uppercase tracking-wider font-bold mb-3 px-3 py-1.5"
             style={{
-              fontSize: "0.875rem",
+              fontSize: `${fitPx(18, 12)}px`,
               color: readableOn(accent),
               backgroundColor: accent,
               borderRadius: `${borderRadius}px`,
@@ -128,7 +143,7 @@ export function CVPreview({
           <h2
             className="uppercase tracking-widest font-semibold mb-2"
             style={{
-              fontSize: "0.8rem",
+              fontSize: `${fitPx(16, 0)}px`,
               color: primary,
               letterSpacing: "0.15em",
             }}
