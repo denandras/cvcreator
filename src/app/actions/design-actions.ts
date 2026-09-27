@@ -114,6 +114,68 @@ export async function saveDesign(
   }
 }
 
+// ─── Profile info (name/title) ──────────────────────────────────────────────
+// Stored in cv_designs.custom_config jsonb: { profile_name, profile_title }
+// (no dedicated columns; survives reload, RLS-protected like the rest of the design row)
+
+export async function getProfileInfo(
+  cvId: string
+): Promise<{ profileName: string; profileTitle: string }> {
+  await requireAuth();
+  const supabase = await createAuthClient();
+
+  const { data } = await supabase
+    .from("cv_designs")
+    .select("custom_config")
+    .eq("cv_id", cvId)
+    .single();
+
+  const cfg = ((data?.custom_config as Record<string, unknown>) ?? {}) as Record<
+    string,
+    unknown
+  >;
+  return {
+    profileName: typeof cfg.profile_name === "string" ? cfg.profile_name : "",
+    profileTitle: typeof cfg.profile_title === "string" ? cfg.profile_title : "",
+  };
+}
+
+export async function saveProfileInfo(
+  cvId: string,
+  profileName: string,
+  profileTitle: string
+): Promise<void> {
+  await requireAuth();
+  const supabase = await createAuthClient();
+
+  // Read-modify-write custom_config so we don't clobber other design keys
+  const { data: existing } = await supabase
+    .from("cv_designs")
+    .select("id, custom_config")
+    .eq("cv_id", cvId)
+    .single();
+
+  const cfg = {
+    ...((existing?.custom_config as Record<string, unknown>) ?? {}),
+    profile_name: profileName.trim(),
+    profile_title: profileTitle.trim(),
+  };
+
+  if (existing) {
+    const { error } = await supabase
+      .from("cv_designs")
+      .update({ custom_config: cfg })
+      .eq("cv_id", cvId);
+    if (error) throw new Error(`Failed to save profile info: ${error.message}`);
+  } else {
+    const { error } = await supabase.from("cv_designs").insert({
+      cv_id: cvId,
+      custom_config: cfg,
+    });
+    if (error) throw new Error(`Failed to save profile info: ${error.message}`);
+  }
+}
+
 // ─── Full CV data load ───────────────────────────────────────────────────────
 
 export async function getFullCVData(cvId: string) {

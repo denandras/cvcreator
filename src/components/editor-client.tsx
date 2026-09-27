@@ -44,7 +44,13 @@ import {
   upsertTranslation,
   deleteTranslation,
 } from "@/app/actions/cv-actions";
-import { getDesign, saveDesign, getUserCVs } from "@/app/actions/design-actions";
+import {
+  getDesign,
+  saveDesign,
+  getUserCVs,
+  getProfileInfo,
+  saveProfileInfo,
+} from "@/app/actions/design-actions";
 import { CVPreview } from "@/components/cv-preview";
 import { DesignSidebar } from "@/components/design-sidebar";
 import { getTemplate, getPalette } from "@/lib/design-constants";
@@ -142,14 +148,17 @@ export function EditorClient() {
     setLoading(true);
     setError(null);
     try {
-      const [sectionsData, designData] = await Promise.all([
+      const [sectionsData, designData, profileInfo] = await Promise.all([
         getSections(cvId),
         getDesign(cvId),
+        getProfileInfo(cvId),
       ]);
       setSections(sectionsData);
       setDesign(designData);
       setDesignForm(designData ?? {});
       setDesignDirty(false);
+      setProfileName(profileInfo.profileName);
+      setProfileTitle(profileInfo.profileTitle);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
@@ -209,6 +218,16 @@ export function EditorClient() {
   };
 
   // ─── Section handlers ────────────────────────────────────────────────────
+
+  // Profile name/title — auto-save on blur (same convention as entries/sections)
+  const handleProfileBlur = async () => {
+    if (!cvId) return;
+    try {
+      await saveProfileInfo(cvId, profileName, profileTitle);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save profile info");
+    }
+  };
 
   const handleAddSection = async () => {
     if (!cvId) return;
@@ -547,7 +566,16 @@ export function EditorClient() {
     if (!cvId) return;
     setDesignSaving(true);
     try {
-      const saved = await saveDesign(cvId, designForm);
+      // Preserve profile_name/profile_title in custom_config (they live there too)
+      const merged: typeof designForm = {
+        ...designForm,
+        custom_config: {
+          ...(designForm.custom_config ?? {}),
+          profile_name: profileName.trim(),
+          profile_title: profileTitle.trim(),
+        },
+      };
+      const saved = await saveDesign(cvId, merged);
       setDesign(saved);
       setDesignDirty(false);
       setDesignSaved(true);
@@ -896,6 +924,7 @@ export function EditorClient() {
                           type="text"
                           value={profileName}
                           onChange={(e) => setProfileName(e.target.value)}
+                          onBlur={handleProfileBlur}
                           placeholder="Full name"
                           className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:border-teal-500 focus:outline-none"
                         />
@@ -903,6 +932,7 @@ export function EditorClient() {
                           type="text"
                           value={profileTitle}
                           onChange={(e) => setProfileTitle(e.target.value)}
+                          onBlur={handleProfileBlur}
                           placeholder="Professional title"
                           className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:border-teal-500 focus:outline-none"
                         />
