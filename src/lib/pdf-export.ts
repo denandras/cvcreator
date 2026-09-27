@@ -336,6 +336,7 @@ interface RenderContext {
   pageMargin: number; // in pt
   accent: string;
   primary: string;
+  subtitle: string;
   pageMarginColor: string;
   textColor: string;
   mutedColor: string;
@@ -360,6 +361,7 @@ interface EffectiveColors {
   surface: string;
   text: string;
   muted: string;
+  subtitle: string;
 }
 
 function resolveColors(design: Partial<CVDesign>, palette: ColorPalette): EffectiveColors {
@@ -371,6 +373,7 @@ function resolveColors(design: Partial<CVDesign>, palette: ColorPalette): Effect
     surface: (cfg.surfaceColor as string) || palette.surface,
     text: (cfg.textColor as string) || palette.text,
     muted: (cfg.mutedColor as string) || palette.muted,
+    subtitle: (cfg.subtitleColor as string) || design.accent_color || palette.accent,
   };
 }
 
@@ -536,7 +539,13 @@ function renderSection(
     layout?.columns === "one" ? false :
     template.twoColumnDefault;
 
-  y = renderHeading(ctx, sanitizeText(section.title), y);
+  // Continuation of a section split across pages: entries only, no heading.
+  const isContinuation = (section as SectionWithEntries & { isContinuation?: boolean }).isContinuation === true;
+  if (!isContinuation) {
+    y = renderHeading(ctx, sanitizeText(section.title), y);
+  } else {
+    y -= px2pt(spacing.section) / 2; // partial section gap instead of full heading block
+  }
 
   if (twoCol && section.entries.length > 1) {
     const mid = Math.ceil(section.entries.length / 2);
@@ -610,7 +619,7 @@ async function renderProfileHeader(
 
     if (title) {
       setFont(ctx, "normal", px2pt(14));
-      setText(ctx, accent);
+      setText(ctx, ctx.subtitle);
       const titleY = name ? y + px2pt(28) : y + px2pt(14);
       doc.text(title.toUpperCase(), textX, titleY);
     }
@@ -624,7 +633,7 @@ async function renderProfileHeader(
     }
     if (title) {
       setFont(ctx, "normal", px2pt(14));
-      setText(ctx, accent);
+      setText(ctx, ctx.subtitle);
       const titleY = name ? y + px2pt(28) : y + px2pt(14);
       doc.text(title.toUpperCase(), pageMargin + contentWidth / 2, titleY, { align: "center" });
     }
@@ -748,17 +757,36 @@ function flowLayout(
     if (pageItems.length === 0) return;
     // Convert flow items back into page section groups. Groups preserve
     // original section order; a section split across pages appears on both.
+    // A group that doesn't contain the section's own heading flow item is a
+    // continuation: the renderer skips the heading for it.
     const pageSections: SectionWithEntries[] = [];
-    const seen = new Map<string, SectionWithEntries>();
+    const seen = new Map<
+      string,
+      { group: SectionWithEntries; hasHeading: boolean }
+    >();
     for (const { item } of pageItems) {
       const s = item.section;
-      if (!seen.has(s.id)) {
+      let rec = seen.get(s.id);
+      if (!rec) {
         const group: SectionWithEntries = { ...s, entries: [] };
-        seen.set(s.id, group);
+        rec = { group, hasHeading: false };
+        seen.set(s.id, rec);
         pageSections.push(group);
       }
+      if (item.kind === "heading") {
+        rec.hasHeading = true;
+      }
       if (item.entry) {
-        seen.get(s.id)!.entries.push(item.entry);
+        rec.group.entries.push(item.entry);
+      }
+    }
+    // Mark continuation groups (no heading on this page) so the renderer
+    // knows not to repeat the heading.
+    for (const section of pageSections) {
+      const rec = seen.get(section.id)!;
+      if (!rec.hasHeading) {
+        (section as SectionWithEntries & { isContinuation?: boolean }).isContinuation =
+          true;
       }
     }
     pages.push(pageSections);
@@ -891,6 +919,7 @@ export async function exportToPdf(
     pageMargin,
     accent: colors.accent,
     primary: colors.primary,
+    subtitle: colors.subtitle,
     pageMarginColor: colors.bg,
     textColor: colors.text,
     mutedColor: colors.muted,

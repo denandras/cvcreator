@@ -50,6 +50,10 @@ export function CVPreview({
   const pageMarginColor = (design.custom_config?.marginColor as string) ?? palette.bg;
   const textColor = (design.custom_config?.textColor as string) ?? palette.text;
   const mutedColor = (design.custom_config?.mutedColor as string) ?? palette.muted;
+  const subtitleColor =
+    (design.custom_config?.subtitleColor as string) ??
+    design.accent_color ??
+    palette.accent;
   const surfaceColor = (design.custom_config?.surfaceColor as string) ?? palette.surface;
 
   // Auto-pagination state
@@ -211,9 +215,10 @@ export function CVPreview({
 
   const renderSection = (section: SectionWithEntries) => {
     const twoCol = isTwoColumn(section);
+    const isContinuation = (section as SectionWithEntries & { isContinuation?: boolean }).isContinuation === true;
     return (
-      <div key={section.id} style={{ marginBottom: `${spacing.section}px`, breakInside: "avoid" }}>
-        {renderHeading(sanitizeText(section.title))}
+      <div key={section.id} style={{ marginBottom: isContinuation ? `${spacing.item}px` : `${spacing.section}px`, breakInside: "avoid" }}>
+        {!isContinuation && renderHeading(sanitizeText(section.title))}
         {twoCol ? (
           (() => {
             const mid = Math.ceil(section.entries.length / 2);
@@ -277,7 +282,7 @@ export function CVPreview({
                 className="uppercase tracking-wider"
                 style={{
                   fontSize: "0.875rem",
-                  color: accent,
+                  color: subtitleColor,
                   fontWeight: 500,
                   letterSpacing: "0.1em",
                 }}
@@ -408,19 +413,35 @@ export function CVPreview({
     const flush = () => {
       if (pageItems.length === 0) return;
       const pageSections: SectionWithEntries[] = [];
-      const seen = new Map<string, SectionWithEntries>();
+      const seen = new Map<
+        string,
+        { group: SectionWithEntries; hasHeading: boolean }
+      >();
       for (const it of pageItems) {
         const s = it.section;
-        if (!seen.has(s.id)) {
+        let rec = seen.get(s.id);
+        if (!rec) {
           const group: SectionWithEntries = { ...s, entries: [] };
-          seen.set(s.id, group);
+          rec = { group, hasHeading: false };
+          seen.set(s.id, rec);
           pageSections.push(group);
         }
+        if (it.kind === "heading") {
+          rec.hasHeading = true;
+        }
         if (it.entry) {
-          seen.get(s.id)!.entries.push(it.entry);
+          rec.group.entries.push(it.entry);
         } else if (it.block) {
           // Two-column block: all entries of the section move together
-          seen.get(s.id)!.entries.push(...s.entries);
+          rec.group.entries.push(...s.entries);
+        }
+      }
+      // Mark continuation groups (no heading on this page)
+      for (const section of pageSections) {
+        const rec = seen.get(section.id)!;
+        if (!rec.hasHeading) {
+          (section as SectionWithEntries & { isContinuation?: boolean }).isContinuation =
+            true;
         }
       }
       pages.push(pageSections);

@@ -261,6 +261,20 @@ export function DesignSidebar({
                 />
               </div>
 
+              <div className="grid grid-cols-1">
+                <ColorField
+                  label="Subtitle"
+                  hint="Professional title under name"
+                  value={(design.custom_config?.subtitleColor as string) ?? ""}
+                  fallback={
+                    (design.accent_color as string) ||
+                    getPalette(design.custom_config?.paletteId as string ?? "slate").accent
+                  }
+                  onChange={(v) => onChange("custom_config", { ...(design.custom_config ?? {}), subtitleColor: v })}
+                  onClear={() => onChange("custom_config", { ...(design.custom_config ?? {}), subtitleColor: undefined })}
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <ColorField
                   label="Text"

@@ -53,7 +53,7 @@ import {
 } from "@/app/actions/design-actions";
 import { CVPreview } from "@/components/cv-preview";
 import { DesignSidebar } from "@/components/design-sidebar";
-import { getTemplate, getPalette } from "@/lib/design-constants";
+import { getTemplate } from "@/lib/design-constants";
 import {
   getProfilePicture,
   setProfilePicture,
@@ -579,33 +579,40 @@ export function EditorClient() {
 
   const handleApplyTemplate = (templateId: string) => {
     const tpl = getTemplate(templateId);
-    const pal = getPalette(tpl.defaultPalette);
-    setDesignForm((prev) => ({
-      ...prev,
-      template: templateId,
-      font_family: tpl.defaultFont,
-      primary_color: pal.primary,
-      accent_color: pal.accent,
-      custom_config: {
-        ...(prev.custom_config ?? {}),
-        paletteId: tpl.defaultPalette,
-      },
-    }));
+    setDesignForm((prev) => {
+      const { textColor, mutedColor, marginColor, surfaceColor, ...restCfg } =
+        (prev.custom_config ?? {}) as Record<string, unknown>;
+      return {
+        ...prev,
+        template: templateId,
+        font_family: tpl.defaultFont,
+        primary_color: null,
+        accent_color: null,
+        custom_config: {
+          ...restCfg,
+          paletteId: tpl.defaultPalette,
+        },
+      };
+    });
     setDesignDirty(true);
     setDesignSaved(false);
   };
 
   const handleApplyPalette = (paletteId: string) => {
-    const pal = getPalette(paletteId);
-    setDesignForm((prev) => ({
-      ...prev,
-      primary_color: pal.primary,
-      accent_color: pal.accent,
-      custom_config: {
-        ...(prev.custom_config ?? {}),
-        paletteId,
-      },
-    }));
+    setDesignForm((prev) => {
+      // Clear all custom color overrides — palette selection resets colors
+      const { textColor, mutedColor, marginColor, surfaceColor, ...restCfg } =
+        (prev.custom_config ?? {}) as Record<string, unknown>;
+      return {
+        ...prev,
+        primary_color: null,
+        accent_color: null,
+        custom_config: {
+          ...restCfg,
+          paletteId,
+        },
+      };
+    });
     setDesignDirty(true);
     setDesignSaved(false);
   };

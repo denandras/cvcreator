@@ -60,8 +60,8 @@ export interface CVDesign {
   cv_id: string;
   template: string;
   font_family: string;
-  primary_color: string;
-  accent_color: string;
+  primary_color?: string | null;
+  accent_color?: string | null;
   spacing: Spacing;
   border_radius: number;
   page_margin: number;
@@ -102,8 +102,8 @@ export interface DesignInput {
   cv_id: string;
   template?: string;
   font_family?: string;
-  primary_color?: string;
-  accent_color?: string;
+  primary_color?: string | null;
+  accent_color?: string | null;
   spacing?: Spacing;
   border_radius?: number;
   page_margin?: number;
