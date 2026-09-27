@@ -115,12 +115,37 @@ export async function saveDesign(
 }
 
 // ─── Profile info (name/title) ──────────────────────────────────────────────
-// Stored in cv_designs.custom_config jsonb: { profile_name, profile_title }
+// Stored in cv_designs.custom_config jsonb:
+//   profile_name / profile_title        — primary language values
+//   profile_translations: { [lang]: { name, title } } — per-language overrides
 // (no dedicated columns; survives reload, RLS-protected like the rest of the design row)
+
+export interface ProfileTranslations {
+  [lang: string]: { name: string; title: string };
+}
+
+function readProfileConfig(cfg: Record<string, unknown>) {
+  const t = (cfg.profile_translations ?? {}) as ProfileTranslations;
+  const translations: ProfileTranslations = {};
+  for (const [lang, v] of Object.entries(t)) {
+    if (v && typeof v === "object") {
+      const obj = v as { name?: unknown; title?: unknown };
+      translations[lang] = {
+        name: typeof obj.name === "string" ? obj.name : "",
+        title: typeof obj.title === "string" ? obj.title : "",
+      };
+    }
+  }
+  return translations;
+}
 
 export async function getProfileInfo(
   cvId: string
-): Promise<{ profileName: string; profileTitle: string }> {
+): Promise<{
+  profileName: string;
+  profileTitle: string;
+  profileTranslations: ProfileTranslations;
+}> {
   await requireAuth();
   const supabase = await createAuthClient();
 
@@ -137,13 +162,15 @@ export async function getProfileInfo(
   return {
     profileName: typeof cfg.profile_name === "string" ? cfg.profile_name : "",
     profileTitle: typeof cfg.profile_title === "string" ? cfg.profile_title : "",
+    profileTranslations: readProfileConfig(cfg),
   };
 }
 
 export async function saveProfileInfo(
   cvId: string,
   profileName: string,
-  profileTitle: string
+  profileTitle: string,
+  profileTranslations?: ProfileTranslations
 ): Promise<void> {
   await requireAuth();
   const supabase = await createAuthClient();
@@ -155,11 +182,16 @@ export async function saveProfileInfo(
     .eq("cv_id", cvId)
     .single();
 
-  const cfg = {
-    ...((existing?.custom_config as Record<string, unknown>) ?? {}),
+  const prevCfg = ((existing?.custom_config as Record<string, unknown>) ??
+    {}) as Record<string, unknown>;
+  const cfg: Record<string, unknown> = {
+    ...prevCfg,
     profile_name: profileName.trim(),
     profile_title: profileTitle.trim(),
   };
+  if (profileTranslations) {
+    cfg.profile_translations = profileTranslations;
+  }
 
   if (existing) {
     const { error } = await supabase

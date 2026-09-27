@@ -122,9 +122,24 @@ export function EditorClient() {
   const [designSaving, setDesignSaving] = useState(false);
   const [designSaved, setDesignSaved] = useState(false);
 
-  // Profile info for preview header
+  // Profile info for preview header (primary-language values + per-language overrides)
   const [profileName, setProfileName] = useState("");
   const [profileTitle, setProfileTitle] = useState("");
+  const [profileTranslations, setProfileTranslations] = useState<
+    Record<string, { name: string; title: string }>
+  >({});
+
+  // Resolved values for the active language: secondary-language override if
+  // present (non-empty), otherwise the primary-language value.
+  const activeProfile = (() => {
+    if (activeLang !== primaryLang) {
+      const t = profileTranslations[activeLang];
+      if (t && (t.name || t.title)) {
+        return { name: t.name, title: t.title };
+      }
+    }
+    return { name: profileName, title: profileTitle };
+  })();
 
   // Page breaks — indices into the sections array where breaks occur
   const [pageBreaks, setPageBreaks] = useState<number[]>([]);
@@ -159,6 +174,7 @@ export function EditorClient() {
       setDesignDirty(false);
       setProfileName(profileInfo.profileName);
       setProfileTitle(profileInfo.profileTitle);
+      setProfileTranslations(profileInfo.profileTranslations ?? {});
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
@@ -223,10 +239,42 @@ export function EditorClient() {
   const handleProfileBlur = async () => {
     if (!cvId) return;
     try {
-      await saveProfileInfo(cvId, profileName, profileTitle);
+      await saveProfileInfo(cvId, profileName, profileTitle, profileTranslations);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save profile info");
     }
+  };
+
+  // Per-language profile translation (secondary language) — auto-save on blur
+  const handleProfileTranslationBlur = async (
+    field: "name" | "title"
+  ) => {
+    if (!cvId || activeLang === primaryLang) return;
+    const current = profileTranslations[activeLang] ?? { name: "", title: "" };
+    const next = {
+      ...profileTranslations,
+      [activeLang]: current,
+    };
+    // Drop empty language entries entirely (no ghost overrides)
+    if (!current.name && !current.title) {
+      delete next[activeLang];
+    }
+    try {
+      await saveProfileInfo(cvId, profileName, profileTitle, next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save profile info");
+    }
+  };
+
+  const handleProfileTranslationChange = (
+    field: "name" | "title",
+    value: string
+  ) => {
+    const current = profileTranslations[activeLang] ?? { name: "", title: "" };
+    setProfileTranslations((prev) => ({
+      ...prev,
+      [activeLang]: { ...current, [field]: value },
+    }));
   };
 
   const handleAddSection = async () => {
@@ -573,6 +621,7 @@ export function EditorClient() {
           ...(designForm.custom_config ?? {}),
           profile_name: profileName.trim(),
           profile_title: profileTitle.trim(),
+          profile_translations: profileTranslations,
         },
       };
       const saved = await saveDesign(cvId, merged);
@@ -638,8 +687,8 @@ export function EditorClient() {
     setPdfExporting(true);
     try {
       const cvData: PdfCVData = {
-        profileName,
-        profileTitle,
+        profileName: activeProfile.name,
+        profileTitle: activeProfile.title,
         profilePicture: includePhotoInPdf ? profilePicture : null,
         sections,
         design: designForm,
@@ -647,7 +696,7 @@ export function EditorClient() {
         pageBreaks,
       };
       await exportToPdf(previewRef.current, {
-        profileName: profileName || "CV",
+        profileName: activeProfile.name || "CV",
         includePhoto: includePhotoInPdf,
         cvData,
       });
@@ -901,6 +950,34 @@ export function EditorClient() {
                           onPrimaryLangChange={handlePrimaryLangChange}
                         />
 
+                        {/* Profile info translation (name/title) */}
+                        <div className="bg-white rounded-xl border border-gray-200 p-4">
+                          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                            Profile — {languages.find((l) => l.code === activeLang)?.full ?? activeLang}
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <input
+                              type="text"
+                              value={profileTranslations[activeLang]?.name ?? ""}
+                              onChange={(e) => handleProfileTranslationChange("name", e.target.value)}
+                              onBlur={() => handleProfileTranslationBlur("name")}
+                              placeholder={profileName || "Full name (primary)"}
+                              className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:border-teal-500 focus:outline-none"
+                            />
+                            <input
+                              type="text"
+                              value={profileTranslations[activeLang]?.title ?? ""}
+                              onChange={(e) => handleProfileTranslationChange("title", e.target.value)}
+                              onBlur={() => handleProfileTranslationBlur("title")}
+                              placeholder={profileTitle || "Professional title (primary)"}
+                              className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:border-teal-500 focus:outline-none"
+                            />
+                          </div>
+                          <p className="text-xs text-gray-400 mt-2">
+                            Leave empty to fall back to the primary-language value.
+                          </p>
+                        </div>
+
                         {/* Translation panel */}
                         <TranslationPanel
                           sections={sections}
@@ -1087,8 +1164,8 @@ export function EditorClient() {
                       design={designForm}
                       activeLang={activeLang}
                       pageBreaks={pageBreaks}
-                      profileName={profileName}
-                      profileTitle={profileTitle}
+                      profileName={activeProfile.name}
+                      profileTitle={activeProfile.title}
                       showPageBreaks
                       profilePicture={includePhotoInPdf ? profilePicture : null}
                     />
