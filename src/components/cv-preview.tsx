@@ -231,14 +231,29 @@ export function CVPreview({
   const renderSection = (section: SectionWithEntries) => {
     const twoCol = isTwoColumn(section);
     const isContinuation = (section as SectionWithEntries & { isContinuation?: boolean }).isContinuation === true;
+    const meta = section as SectionWithEntries & { twoColCounts?: { c1: number; c2: number } };
+    const isMidSectionChunk = isContinuation && meta.twoColCounts !== undefined;
     return (
-      <div key={section.id} style={{ marginBottom: isContinuation ? `${spacing.item}px` : `${spacing.section}px`, breakInside: "avoid" }}>
+      <div
+        key={section.id}
+        style={{
+          marginBottom: isMidSectionChunk
+            ? `${spacing.item + 2}px`
+            : isContinuation
+              ? `${spacing.item}px`
+              : `${spacing.section}px`,
+          breakInside: "avoid",
+        }}
+      >
         {!isContinuation && renderHeading(sanitizeText(section.title))}
         {twoCol ? (
           (() => {
-            const mid = Math.ceil(section.entries.length / 2);
-            const col1 = section.entries.slice(0, mid);
-            const col2 = section.entries.slice(mid);
+            const counts = meta.twoColCounts;
+            const splitAt = counts
+              ? counts.c1
+              : Math.ceil(section.entries.length / 2);
+            const col1 = section.entries.slice(0, splitAt);
+            const col2 = section.entries.slice(splitAt);
             return (
               <div style={{ display: "flex", gap: `${spacing.item * 4}px` }}>
                 <div style={{ flex: 1 }}>{col1.map(renderEntry)}</div>
@@ -367,11 +382,15 @@ export function CVPreview({
     kind: "heading" | "entry";
     section: SectionWithEntries;
     entry?: SectionWithEntries["entries"][0];
-    /** true = whole two-column block, must not split */
+    /** true = a two-column block (may span multiple flow items when split) */
     block?: boolean;
+    /** For split two-column blocks: [start, end) row range within the section */
+    blockRange?: { start: number; end: number };
   }
 
-  // Build the flow item list (same shape as the PDF exporter's flowLayout)
+  // Build the flow item list (same shape as the PDF exporter's flowLayout).
+  // Two-column sections taller than one page are pre-split into chunks so a
+  // long section (e.g. 27 orchestra jobs) flows across pages without a void.
   const isTwoColumnRef = useRef(isTwoColumn);
   isTwoColumnRef.current = isTwoColumn;
   const flowItems: FlowItem[] = useMemo(() => {
@@ -380,7 +399,29 @@ export function CVPreview({
       items.push({ kind: "heading", section });
       const twoCol = isTwoColumnRef.current(section);
       if (twoCol && section.entries.length > 1) {
-        items.push({ kind: "entry", section, block: true });
+        // Estimate whether the block fits a single page: measured properly
+        // after render; the pre-split is a safety bound (max rows per page).
+        const half = Math.ceil(section.entries.length / 2);
+        // Rough per-row height: entry rows are ~50-90px; use a generous
+        // 120px/row cap so a chunk never overflows one page.
+        const maxRowsPerPage = Math.max(
+          4,
+          Math.floor((PAGE_HEIGHT - pageMargin * 2 - 120) / 120)
+        );
+        const rows = half;
+        if (rows > maxRowsPerPage) {
+          for (let start = 0; start < rows; start += maxRowsPerPage) {
+            const end = Math.min(start + maxRowsPerPage, rows);
+            items.push({
+              kind: "entry",
+              section,
+              block: true,
+              blockRange: { start, end },
+            });
+          }
+        } else {
+          items.push({ kind: "entry", section, block: true });
+        }
       } else {
         for (const entry of section.entries) {
           items.push({ kind: "entry", section, entry });
@@ -388,7 +429,7 @@ export function CVPreview({
       }
     }
     return items;
-  }, [enabledSectionsWithEntries]);
+  }, [enabledSectionsWithEntries, pageMargin]);
 
   useEffect(() => {
     if (!useAutoPaginate || !measureRef.current) {
@@ -446,8 +487,20 @@ export function CVPreview({
         }
         if (it.entry) {
           rec.group.entries.push(it.entry);
+        } else if (it.block && it.blockRange) {
+          // Split two-column block chunk: push [col1 range, col2 range]
+          const half = Math.ceil(s.entries.length / 2);
+          const col1 = s.entries.slice(0, half);
+          const col2 = s.entries.slice(half);
+          const c1s = col1.slice(it.blockRange.start, it.blockRange.end);
+          const c2s = col2.slice(it.blockRange.start, it.blockRange.end);
+          rec.group.entries.push(...c1s, ...c2s);
+          (rec.group as SectionWithEntries & { twoColCounts?: { c1: number; c2: number } }).twoColCounts = {
+            c1: c1s.length,
+            c2: c2s.length,
+          };
         } else if (it.block) {
-          // Two-column block: all entries of the section move together
+          // Whole two-column block: all entries of the section move together
           rec.group.entries.push(...s.entries);
         }
       }
@@ -570,10 +623,10 @@ export function CVPreview({
                 <div key={"m-b-" + it.section.id} data-flow="block">
                   <div style={{ display: "flex", gap: `${spacing.item * 4}px` }}>
                     <div style={{ flex: 1 }}>
-                      {it.section.entries.slice(0, Math.ceil(it.section.entries.length / 2)).map(renderEntry)}
+                      {it.section.entries.slice(0, it.blockRange?.end ?? Math.ceil(it.section.entries.length / 2)).map(renderEntry)}
                     </div>
                     <div style={{ flex: 1 }}>
-                      {it.section.entries.slice(Math.ceil(it.section.entries.length / 2)).map(renderEntry)}
+                      {it.section.entries.slice(it.blockRange?.end ?? Math.ceil(it.section.entries.length / 2)).map(renderEntry)}
                     </div>
                   </div>
                 </div>

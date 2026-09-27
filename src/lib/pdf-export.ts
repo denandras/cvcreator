@@ -558,15 +558,28 @@ function renderSection(
   if (!isContinuation) {
     y = renderHeading(ctx, sanitizeText(section.title), y);
   } else {
-    y -= px2pt(spacing.section) / 2; // partial section gap instead of full heading block
+    y -= px2pt(spacing.item) + px2pt(2); // tight gap between split chunks
   }
 
   if (twoCol && section.entries.length > 1) {
-    const mid = Math.ceil(section.entries.length / 2);
-    const col1 = section.entries.slice(0, mid);
-    const col2 = section.entries.slice(mid);
     const colGap = px2pt(spacing.item * 4);
     const colWidth = (contentWidth - colGap) / 2;
+
+    // Split-block metadata: flush() pushed [col1 entries, col2 entries] of
+    // this chunk in order and recorded their counts.
+    const meta = section as SectionWithEntries & {
+      twoColCounts?: { c1: number; c2: number };
+    };
+    let col1: SectionWithEntries["entries"];
+    let col2: SectionWithEntries["entries"];
+    if (meta.twoColCounts) {
+      col1 = section.entries.slice(0, meta.twoColCounts.c1);
+      col2 = section.entries.slice(meta.twoColCounts.c1);
+    } else {
+      const mid = Math.ceil(section.entries.length / 2);
+      col1 = section.entries.slice(0, mid);
+      col2 = section.entries.slice(mid);
+    }
 
     const yStart = y;
     const ctxCol1: RenderContext = { ...ctx, contentWidth: colWidth };
@@ -591,7 +604,15 @@ function renderSection(
     }
   }
 
-  y += px2pt(spacing.section);
+  // Split-block chunks (mid-section) stay tight; real section ends keep the
+  // full gap. The next section's heading renders with its own spacing anyway.
+  const meta = section as SectionWithEntries & { twoColCounts?: unknown };
+  const isMidSectionChunk = isContinuation && meta.twoColCounts !== undefined;
+  if (!isMidSectionChunk) {
+    y += px2pt(spacing.section);
+  } else {
+    y += px2pt(spacing.item) + px2pt(2);
+  }
   return y;
 }
 
@@ -677,8 +698,14 @@ interface FlowItem {
   kind: "heading" | "entry";
   section: SectionWithEntries;
   entry?: SectionWithEntries["entries"][0];
-  /** true = whole two-column block, must not split */
+  /** true = a two-column block (may span multiple flow items when split) */
   block?: boolean;
+  /** For split two-column blocks: [start, end) row range within the section */
+  blockRange?: { start: number; end: number };
+  /** First chunk of a split two-column block */
+  isBlockHead?: boolean;
+  /** Last chunk of a split two-column block */
+  isBlockTail?: boolean;
 }
 
 /** Height of the heading + trailing gap in pt (heading 18pt font + 12px gap + safety) */
@@ -741,17 +768,68 @@ function flowLayout(
     measured.push({ item: { kind: "heading", section }, height: HEADING_BLOCK_PT });
 
     if (twoCol && section.entries.length > 1) {
-      // Two-column: block height = max(column heights); never splits
-      const mid = Math.ceil(section.entries.length / 2);
-      const colWidth = (contentWidth - px2pt(spacing.item * 4)) / 2;
-      let h1 = 0;
-      let h2 = 0;
-      for (const e of section.entries.slice(0, mid)) h1 += measureEntry(e, colWidth);
-      for (const e of section.entries.slice(mid)) h2 += measureEntry(e, colWidth);
-      measured.push({
-        item: { kind: "entry", section, block: true },
-        height: Math.max(h1, h2),
-      });
+      // Two-column: keep the pair-rows in sync when splitting (col2 may
+      // continue on a later page as a balanced continuation block).
+      const colGap = px2pt(spacing.item * 4);
+      const colWidth = (contentWidth - colGap) / 2;
+      const half = Math.ceil(section.entries.length / 2);
+      const col1 = section.entries.slice(0, half);
+      const col2 = section.entries.slice(half);
+
+      // Measure cumulative heights so we can split at a row boundary
+      const h1: number[] = col1.map((e) => measureEntry(e, colWidth));
+      const h2: number[] = col2.map((e) => measureEntry(e, colWidth));
+
+      // Row k renders col1[k] next to col2[k]; the visual height of the
+      // block through row k is the max of the two column prefixes.
+      const rows = Math.max(col1.length, col2.length);
+      const rowHeights: number[] = [];
+      let acc1 = 0;
+      let acc2 = 0;
+      for (let r = 0; r < rows; r++) {
+        if (r < col1.length) acc1 += h1[r];
+        if (r < col2.length) acc2 += h2[r];
+        rowHeights.push(Math.max(acc1, acc2) - (rowHeights.reduce((a, b) => a + b, 0)));
+      }
+
+      // Prefix sums of visual height
+      const prefix: number[] = [];
+      let acc = 0;
+      for (const rh of rowHeights) {
+        acc += rh;
+        prefix.push(acc);
+      }
+
+      // Split into chunks that each fit within a full page of vertical space
+      const pageRoom = ctx.pageHeightPt - pageTop * 2 - HEADING_BLOCK_PT;
+      let start = 0;
+      while (start < rows) {
+        // Find the furthest row index (inclusive) fitting in pageRoom
+        const base = start === 0 ? 0 : prefix[start - 1];
+        let end = start;
+        while (
+          end < rows &&
+          (prefix[end] - base <= pageRoom || end === start)
+        ) {
+          end++;
+        }
+        const chunkRowsEnd = end - 1; // inclusive
+        const isFirstChunk = start === 0;
+        const isLastChunk = chunkRowsEnd >= rows - 1;
+
+        measured.push({
+          item: {
+            kind: "entry",
+            section,
+            block: true,
+            blockRange: { start, end: chunkRowsEnd + 1 },
+            isBlockHead: isFirstChunk,
+            isBlockTail: isLastChunk,
+          },
+          height: (prefix[chunkRowsEnd] - base),
+        });
+        start = chunkRowsEnd + 1;
+      }
     } else {
       for (const entry of section.entries) {
         measured.push({
@@ -792,6 +870,24 @@ function flowLayout(
       }
       if (item.entry) {
         rec.group.entries.push(item.entry);
+      } else if (item.block && item.blockRange) {
+        // Split two-column block: push [col1 entries of range, col2 entries
+        // of range] in order, and record counts for the renderer.
+        const { start, end } = item.blockRange;
+        const half = Math.ceil(s.entries.length / 2);
+        const col1 = s.entries.slice(0, half);
+        const col2 = s.entries.slice(half);
+        const c1s = col1.slice(start, end);
+        const c2s = col2.slice(start, end);
+        rec.group.entries.push(...c1s, ...c2s);
+
+        const meta = rec.group as SectionWithEntries & {
+          twoColCounts?: { c1: number; c2: number };
+        };
+        meta.twoColCounts = { c1: c1s.length, c2: c2s.length };
+      } else if (item.block) {
+        // Whole (unsplittable) two-column block: all entries of the section
+        rec.group.entries.push(...s.entries);
       }
     }
     // Mark continuation groups (no heading on this page) so the renderer

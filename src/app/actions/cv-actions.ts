@@ -17,6 +17,8 @@ export async function getSections(cvId: string): Promise<SectionWithEntries[]> {
   await requireAuth();
   const supabase = await createAuthClient();
 
+  // Bulk-fetch sections, entries, and translations in 3 queries
+  // (avoids the N+1 pattern: 1 + N_sections + N_entries sequential requests).
   const { data: sections, error } = await supabase
     .from("cv_sections")
     .select("*")
@@ -25,26 +27,40 @@ export async function getSections(cvId: string): Promise<SectionWithEntries[]> {
 
   if (error) throw new Error(`Failed to fetch sections: ${error.message}`);
 
+  const sectionIds = (sections as CVSection[]).map((s) => s.id);
+  if (sectionIds.length === 0) return [];
+
+  const { data: entries } = await supabase
+    .from("cv_entries")
+    .select("*")
+    .in("section_id", sectionIds)
+    .order("sort_order", { ascending: true });
+
+  const entryIds = ((entries as CVEntry[]) ?? []).map((e) => e.id);
+  const { data: translations } = entryIds.length
+    ? await supabase.from("cv_translations").select("*").in("entry_id", entryIds)
+    : { data: [] };
+
+  const translationsByEntry = new Map<string, CVTranslation[]>();
+  for (const t of (translations as CVTranslation[]) ?? []) {
+    const list = translationsByEntry.get(t.entry_id) ?? [];
+    list.push(t);
+    translationsByEntry.set(t.entry_id, list);
+  }
+  const entriesBySection = new Map<string, CVEntry[]>();
+  for (const e of (entries as CVEntry[]) ?? []) {
+    const list = entriesBySection.get(e.section_id) ?? [];
+    list.push(e);
+    entriesBySection.set(e.section_id, list);
+  }
+
   const result: SectionWithEntries[] = [];
   for (const section of sections as CVSection[]) {
-    const { data: entries } = await supabase
-      .from("cv_entries")
-      .select("*")
-      .eq("section_id", section.id)
-      .order("sort_order", { ascending: true });
-
-    const entriesWithTranslations: SectionWithEntries["entries"] = [];
-    for (const entry of (entries as CVEntry[]) || []) {
-      const { data: translations } = await supabase
-        .from("cv_translations")
-        .select("*")
-        .eq("entry_id", entry.id);
-
-      entriesWithTranslations.push({
+    const entriesWithTranslations: SectionWithEntries["entries"] =
+      (entriesBySection.get(section.id) ?? []).map((entry) => ({
         ...entry,
-        translations: (translations as CVTranslation[]) || [],
-      });
-    }
+        translations: translationsByEntry.get(entry.id) ?? [],
+      }));
 
     // Apply entry sort mode
     if (section.entry_sort_mode === "year_asc") {

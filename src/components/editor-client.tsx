@@ -1233,7 +1233,8 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const [expanded, setExpanded] = useState(true);
+  // Start collapsed — sections expand on demand, keeping the editor scannable
+  const [expanded, setExpanded] = useState(false);
 
   const currentColumns = (section.layout_config?.columns as string) ?? "auto";
   const currentHeading = (section.layout_config?.headingStyle as string) ?? "auto";
