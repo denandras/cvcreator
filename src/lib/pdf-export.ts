@@ -7,6 +7,7 @@ import {
   getTemplate,
   getPalette,
   SPACING_VALUES,
+  getLineHeightValue,
   type ColorPalette,
   type TemplateConfig,
 } from "@/lib/design-constants";
@@ -23,7 +24,6 @@ export interface PdfCVData {
   sections: SectionWithEntries[];
   design: Partial<CVDesign>;
   activeLang: string;
-  pageBreaks?: number[];
 }
 
 interface PdfExportOptions {
@@ -684,13 +684,14 @@ async function renderProfileHeader(
 }
 
 
-// ─── Accurate flow pagination ────────────────────────────────────────────────
+// ─── Flow pagination ─────────────────────────────────────────────────────────
 //
-// Instead of estimating whole-section heights (the old approach), every
-// renderable block is measured with jsPDF's own metrics and laid out as a
-// flow: sections flow across pages, a heading is never orphaned at the bottom
-// of a page, and a two-column block never splits. Zero dead space, zero
-// overflow, no visible page-break artifacts.
+// Content flows freely: every heading/entry/row is measured and placed on the
+// current page while it fits; a page break happens ONLY when the next item
+// genuinely doesn't fit. The user controls forced breaks with a per-section
+// "page break before" checkbox (layout_config.page_break_before) — the system
+// never inserts judgment-based breaks of its own. A section may continue on
+// the next page (entries only, no repeated heading).
 
 interface FlowItem {
   kind: "heading" | "entry";
@@ -795,14 +796,10 @@ function flowLayout(
     }
   }
 
-  // ── Distribute across pages (simple rules) ────────────────────────────────
-  // R1: a section starts on the next page when it would split and fewer than
-  //     2 of its rows fit after the heading on the current page (and the
-  //     section has >= 2 rows). A section that fully fits stays put.
-  // R2: rows/entries flow; a page break happens only when the next item
-  //     genuinely doesn't fit.
-  // R3: no single-row orphan continuation — if only the section's last row
-  //     would land on a new page, the last two rows move together.
+  // ── Distribute across pages ────────────────────────────────────────────────
+  // Pure flow: items fill the current page; a break happens only when the
+  // next item doesn't fit. A section's heading starts a new page only when
+  // the user set layout_config.page_break_before on that section.
   const pages: SectionWithEntries[][] = [];
   let pageItems: Measured[] = [];
   let currentY = pageTop + headerHeightPt;
@@ -869,66 +866,21 @@ function flowLayout(
   for (let i = 0; i < measured.length; i++) {
     const m = measured[i];
 
-    if (m.item.kind === "heading") {
-      // R1: count how many of the section's rows fit after the heading.
-      let fitCount = 0;
-      let acc = m.height;
-      for (let j = i + 1; j < measured.length; j++) {
-        const n = measured[j];
-        if (n.item.kind !== "entry" || n.item.section.id !== m.item.section.id) break;
-        if (currentY + acc + n.height <= bottomLimit) {
-          acc += n.height;
-          fitCount++;
-        } else break;
-      }
-      const sectionRows = measured.filter(
-        (n) => n.item.kind === "entry" && n.item.section.id === m.item.section.id
-      ).length;
-      const wouldSplit = fitCount < sectionRows;
-      if (
-        wouldSplit &&
-        fitCount < 2 &&
-        sectionRows >= 2 &&
-        pageItems.length > 0
-      ) {
-        flush();
-        currentY = pageTop;
-      }
-      pageItems.push(m);
-      currentY += m.height;
-      continue;
+    // User-controlled break: this section was explicitly set to start on a
+    // fresh page (checkbox in the editor). Only applies at the section's
+    // heading, and never when the page is already empty.
+    if (
+      m.item.kind === "heading" &&
+      pageItems.length > 0 &&
+      ((m.item.section.layout_config as Record<string, unknown> | null)?.page_break_before === true)
+    ) {
+      flush();
+      currentY = pageTop;
     }
 
-    // Entry rows (single-col or two-col row) flow naturally (R2)
+    // Pure flow (R2): everything fills the current page; break only when the
+    // next item genuinely doesn't fit.
     if (currentY + m.height > bottomLimit && pageItems.length > 0) {
-      // R3: avoid a 1-row orphan — if this is the LAST row of its section,
-      // pull the previous row of the same section to the next page too.
-      const isLastRowOfSection =
-        !measured[i + 1] ||
-        measured[i + 1].item.kind === "heading" ||
-        measured[i + 1].item.section.id !== m.item.section.id;
-      if (isLastRowOfSection) {
-        let prevIdx = -1;
-        for (let j = pageItems.length - 1; j >= 0; j--) {
-          const p = pageItems[j].item;
-          if (p.kind === "heading") break;
-          if (p.section.id === m.item.section.id) {
-            prevIdx = j;
-            break;
-          }
-        }
-        if (prevIdx >= 0 && pageItems.length - 1 > prevIdx) {
-          const carried = pageItems.splice(prevIdx);
-          const carriedHeight = carried.reduce((a, b) => a + b.height, 0);
-          flush();
-          currentY = pageTop;
-          pageItems = carried;
-          currentY += carriedHeight;
-          pageItems.push(m);
-          currentY += m.height;
-          continue;
-        }
-      }
       flush();
       currentY = pageTop;
     }
@@ -995,7 +947,11 @@ export async function exportToPdf(
     (design.custom_config?.paletteId as string) ?? template.defaultPalette
   );
   const colors = resolveColors(design, palette);
-  const spacing = SPACING_VALUES[design.spacing ?? "normal"];
+  const spacing = {
+    ...SPACING_VALUES[design.spacing ?? "normal"],
+    // User line-height preset overrides the spacing preset's default
+    lineHeight: getLineHeightValue(design, design.spacing ?? "normal"),
+  };
   const borderRadius = design.border_radius ?? 8;
   const pageMargin = px2pt(design.page_margin ?? 48);
   const profileRim = (design.custom_config?.profileRim as boolean) ?? true;
@@ -1055,26 +1011,15 @@ export async function exportToPdf(
     entries: s.entries.filter((e) => e.is_enabled),
   }));
 
-  // Determine page distribution
-  const useAutoPaginate = (data.pageBreaks ?? []).length === 0;
-  let pageSections: SectionWithEntries[][];
-
-  if (!useAutoPaginate) {
-    const breaks = data.pageBreaks!;
-    let start = 0;
-    pageSections = [];
-    for (const breakIdx of breaks) {
-      pageSections.push(enabledSectionsWithEntries.slice(start, breakIdx));
-      start = breakIdx;
-    }
-    pageSections.push(enabledSectionsWithEntries.slice(start));
-  } else {
+  // Determine page distribution: always the flow layout (pure flow +
+  // per-section page_break_before flags from layout_config).
+  const pageSections = (() => {
     let profileHeaderHeight = 0;
     if (data.profileName || data.profileTitle || data.profilePicture) {
       profileHeaderHeight = px2pt(96) + px2pt(spacing.section) * 2 + px2pt(16);
     }
-    pageSections = flowLayout(ctx, enabledSectionsWithEntries, profileHeaderHeight);
-  }
+    return flowLayout(ctx, enabledSectionsWithEntries, profileHeaderHeight);
+  })();
 
   // Render pages
   for (let pageIdx = 0; pageIdx < pageSections.length; pageIdx++) {

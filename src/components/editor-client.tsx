@@ -141,8 +141,7 @@ export function EditorClient() {
     return { name: profileName, title: profileTitle };
   })();
 
-  // Page breaks — indices into the sections array where breaks occur
-  const [pageBreaks, setPageBreaks] = useState<number[]>([]);
+  // Page breaks: per-section layout_config.page_break_before — no separate state
 
   // Profile picture — stored locally in browser only
   const [profilePicture, setProfilePictureState] = useState<string | null>(null);
@@ -656,18 +655,6 @@ export function EditorClient() {
     await handleUpdateSection(sectionId, { layout_config: newConfig });
   };
 
-  // ─── Page break handlers ──────────────────────────────────────────────────
-
-  const handleAddPageBreak = (afterIdx: number) => {
-    if (!pageBreaks.includes(afterIdx + 1)) {
-      setPageBreaks([...pageBreaks, afterIdx + 1].sort((a, b) => a - b));
-    }
-  };
-
-  const handleRemovePageBreak = (idx: number) => {
-    setPageBreaks(pageBreaks.filter((b) => b !== idx));
-  };
-
   // ─── Profile picture handlers ────────────────────────────────────────────────
 
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -700,7 +687,6 @@ export function EditorClient() {
         sections,
         design: designForm,
         activeLang,
-        pageBreaks,
       };
       await exportToPdf(previewRef.current, {
         profileName: activeProfile.name || "CV",
@@ -1130,9 +1116,6 @@ export function EditorClient() {
                               onDeleteTranslation={(entryId, lang) => handleDeleteTranslation(entryId, section.id, lang)}
                               onDragEndEntry={(event) => handleDragEndEntry(section.id, event)}
                               onLayoutChange={(key, val) => handleSectionLayoutChange(section.id, key, val)}
-                              onAddPageBreak={() => handleAddPageBreak(sectionIdx)}
-                              onRemovePageBreak={() => handleRemovePageBreak(sectionIdx + 1)}
-                              hasPageBreakAfter={pageBreaks.includes(sectionIdx + 1)}
                             />
                           ))}
                         </div>
@@ -1170,10 +1153,8 @@ export function EditorClient() {
                       sections={sections}
                       design={designForm}
                       activeLang={activeLang}
-                      pageBreaks={pageBreaks}
                       profileName={activeProfile.name}
                       profileTitle={activeProfile.title}
-                      showPageBreaks
                       profilePicture={includePhotoInPdf ? profilePicture : null}
                     />
                   </div>
@@ -1211,9 +1192,6 @@ export interface SortableSectionCardProps {
   onDeleteTranslation: (entryId: string, lang: string) => void;
   onDragEndEntry: (event: DragEndEvent) => void;
   onLayoutChange: (key: string, value: unknown) => void;
-  onAddPageBreak: () => void;
-  onRemovePageBreak: () => void;
-  hasPageBreakAfter: boolean;
 }
 
 export function SortableSectionCard(props: SortableSectionCardProps) {
@@ -1238,6 +1216,7 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
 
   const currentColumns = (section.layout_config?.columns as string) ?? "auto";
   const currentHeading = (section.layout_config?.headingStyle as string) ?? "auto";
+  const pageBreakBefore = (section.layout_config?.page_break_before as boolean) === true;
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -1359,18 +1338,31 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-gray-400">Heading:</span>
-              <select
-                value={currentHeading}
-                onChange={(e) => props.onLayoutChange("headingStyle", e.target.value)}
-                className="text-xs rounded-lg border border-gray-200 px-1.5 py-0.5 bg-white text-gray-500"
-              >
-                <option value="auto">Auto</option>
-                <option value="underline">Underline</option>
-                <option value="border">Border</option>
-                <option value="filled">Filled</option>
-                <option value="minimal">Minimal</option>
-              </select>
+              <div className="flex items-center bg-white rounded-md p-0.5 border border-gray-200">
+                {[["auto", "Auto"], ["underline", "Underline"], ["border", "Border"], ["filled", "Filled"], ["minimal", "Minimal"]].map(([c, label]) => (
+                  <button
+                    key={c}
+                    onClick={() => props.onLayoutChange("headingStyle", c)}
+                    className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                      currentHeading === c
+                        ? "bg-teal-50 text-teal-600 font-medium"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
+            <label className="flex items-center gap-1.5 cursor-pointer" title="Always start this section at the top of a new page">
+              <input
+                type="checkbox"
+                checked={pageBreakBefore}
+                onChange={(e) => props.onLayoutChange("page_break_before", e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+              />
+              <span className="text-xs text-gray-500 select-none">Page break before</span>
+            </label>
           </div>
         )}
 
@@ -1422,29 +1414,9 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
         )}
       </div>
 
-      {/* Page break indicator */}
-      {props.hasPageBreakAfter ? (
-        <div className="flex items-center justify-center py-2">
-          <div className="flex-1 border-t-2 border-dashed border-teal-300" />
-          <span className="mx-2 text-xs text-teal-500 font-medium">Page break</span>
-          <button
-            onClick={props.onRemovePageBreak}
-            className="text-xs text-teal-400 hover:text-teal-600 mx-1"
-          >
-            remove
-          </button>
-          <div className="flex-1 border-t-2 border-dashed border-teal-300" />
-        </div>
-      ) : (
-        <div className="flex justify-center -my-1 relative z-10">
-          <button
-            onClick={props.onAddPageBreak}
-            className="text-xs text-gray-300 hover:text-teal-500 opacity-0 hover:opacity-100 transition-opacity py-0.5"
-          >
-            + page break
-          </button>
-        </div>
-      )}
+      {/* Page break before this section is set via the layout options bar
+          (checkbox) — a break marker between cards would imply a manual
+          break system we no longer have. */}
     </div>
   );
 }

@@ -303,6 +303,26 @@ export const SPACING_VALUES: Record<Spacing, { section: number; item: number; li
   relaxed: { section: 32, item: 12, lineHeight: 1.8 },
 };
 
+// ─── Line height presets ──────────────────────────────────────────────────────
+// User-selectable body line height (stored in custom_config.lineHeight as the
+// preset id; undefined = follow the spacing preset's default lineHeight).
+
+export const LINE_HEIGHT_PRESETS: Array<{ id: string; label: string; value: number }> = [
+  { id: "tight", label: "Tight", value: 1.25 },
+  { id: "normal", label: "Normal", value: 1.5 },
+  { id: "airy", label: "Airy", value: 1.7 },
+  { id: "spacious", label: "Spacious", value: 1.9 },
+];
+
+export function getLineHeightValue(
+  design: { custom_config?: Record<string, unknown> },
+  spacing: Spacing
+): number {
+  const id = (design.custom_config as Record<string, unknown> | undefined)?.lineHeight as string | undefined;
+  const preset = LINE_HEIGHT_PRESETS.find((p) => p.id === id);
+  return preset?.value ?? SPACING_VALUES[spacing].lineHeight;
+}
+
 // Page sizes for the preview
 export const PAGE_WIDTH = 794; // A4 at 96 DPI
 export const PAGE_HEIGHT = 1123;

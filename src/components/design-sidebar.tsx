@@ -6,6 +6,8 @@ import {
   FONT_OPTIONS,
   COLOR_PALETTES,
   TEMPLATES,
+  LINE_HEIGHT_PRESETS,
+  getLineHeightValue,
   getPalette,
   getTemplate,
 } from "@/lib/design-constants";
@@ -189,6 +191,37 @@ export function DesignSidebar({
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                Line Height
+              </label>
+              <div className="grid grid-cols-4 gap-2">
+                {LINE_HEIGHT_PRESETS.map((p) => {
+                  const fallback = getLineHeightValue(design, (design.spacing as Spacing) ?? "normal");
+                  const isActive = p.value === fallback && !LINE_HEIGHT_PRESETS.some(
+                    (q) => q.id !== p.id && q.value === fallback
+                  );
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => onChange("custom_config", { ...(design.custom_config ?? {}), lineHeight: p.id })}
+                      className={`rounded-lg border-2 px-1 py-2 text-xs font-medium transition-all ${
+                        isActive
+                          ? "border-teal-500 bg-teal-50 text-teal-700"
+                          : "border-gray-200 text-gray-600 hover:border-gray-300"
+                      }`}
+                      title={`${p.label} (${p.value})`}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Vertical density of entry description lines.
+              </p>
             </div>
           </div>
         )}
@@ -445,30 +478,11 @@ export function DesignSidebar({
 
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                Page Management
+                Page Breaks
               </label>
-              <div className="space-y-2">
-                <button
-                  onClick={() => onChange("page_mode", "auto")}
-                  className={`w-full rounded-lg border-2 px-3 py-2 text-xs font-medium transition-all ${
-                    (design.custom_config?.pageMode as string) !== "manual"
-                      ? "border-teal-500 bg-teal-50 text-teal-700"
-                      : "border-gray-200 text-gray-600 hover:border-gray-300"
-                  }`}
-                >
-                  Auto-arrange content
-                </button>
-                <button
-                  onClick={() => onChange("page_mode", "manual")}
-                  className={`w-full rounded-lg border-2 px-3 py-2 text-xs font-medium transition-all ${
-                    (design.custom_config?.pageMode as string) === "manual"
-                      ? "border-teal-500 bg-teal-50 text-teal-700"
-                      : "border-gray-200 text-gray-600 hover:border-gray-300"
-                  }`}
-                >
-                  Manual page breaks
-                </button>
-              </div>
+              <p className="text-xs text-gray-400 mb-2">
+                Content flows onto each page automatically and fills the remaining space. To force a section onto a fresh page, expand it in the editor and tick &quot;Page break before&quot;.
+              </p>
             </div>
           </div>
         )}

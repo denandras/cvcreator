@@ -7,6 +7,7 @@ import {
   getTemplate,
   getPalette,
   SPACING_VALUES,
+  getLineHeightValue,
   PAGE_WIDTH,
   PAGE_HEIGHT,
 } from "@/lib/design-constants";
@@ -15,10 +16,8 @@ interface CVPreviewProps {
   sections: SectionWithEntries[];
   design: Partial<CVDesign>;
   activeLang: string;
-  pageBreaks?: number[];
   profileName?: string;
   profileTitle?: string;
-  showPageBreaks?: boolean;
   profilePicture?: string | null;
 }
 
@@ -26,10 +25,8 @@ export function CVPreview({
   sections,
   design,
   activeLang,
-  pageBreaks = [],
   profileName = "",
   profileTitle = "",
-  showPageBreaks = false,
   profilePicture = null,
 }: CVPreviewProps) {
   const template = getTemplate(design.template ?? "clean");
@@ -38,6 +35,9 @@ export function CVPreview({
   );
   const fontStack = getFontStack(design.font_family ?? template.defaultFont);
   const spacing = SPACING_VALUES[design.spacing ?? "normal"];
+  // Body line height: user preset (custom_config.lineHeight) overrides the
+  // spacing preset's default.
+  const lineHeight = getLineHeightValue(design, design.spacing ?? "normal");
   const borderRadius = design.border_radius ?? 8;
   const pageMargin = design.page_margin ?? 48;
   const accent = design.accent_color ?? palette.accent;
@@ -202,7 +202,7 @@ export function CVPreview({
     return (
       <div
         key={entry.id}
-        style={{ marginBottom: `${spacing.item}px`, lineHeight: spacing.lineHeight, breakInside: "avoid" }}
+        style={{ marginBottom: `${spacing.item}px`, lineHeight, breakInside: "avoid" }}
       >
         <div className="flex items-baseline justify-between gap-3">
           <span className="font-semibold" style={{ color: primary, fontSize: "0.95rem" }}>
@@ -353,26 +353,8 @@ export function CVPreview({
     );
   };
 
-  // Build pages from manual page breaks
-  const manualPages: SectionWithEntries[][] = [];
-  if (pageBreaks.length === 0) {
-    manualPages.push(enabledSectionsWithEntries);
-  } else {
-    let start = 0;
-    for (const breakIdx of pageBreaks) {
-      manualPages.push(enabledSectionsWithEntries.slice(start, breakIdx));
-      start = breakIdx;
-    }
-    manualPages.push(enabledSectionsWithEntries.slice(start));
-  }
-
-  // Auto-pagination: measure content and split into A4 pages.
-  // Mirrors the PDF export's flowLayout with the same simple rules:
-  // R1 — a section that would split with <2 rows on the current page starts
-  //      on the next page (a section that fully fits stays put);
-  // R2 — rows flow freely, a break only when an item truly doesn't fit;
-  // R3 — no single-row orphan continuation (last row carries its predecessor).
-  const useAutoPaginate = pageBreaks.length === 0;
+  // Pages come from auto-pagination (pure flow + user page-break-before flags).
+  const useAutoPaginate = true;
 
   interface FlowItem {
     kind: "heading" | "entry";
@@ -506,68 +488,18 @@ export function CVPreview({
       idx += 1;
       const height = (el ? el.offsetHeight : 0) + (item.kind === "heading" ? spacing.section : spacing.item);
 
-      if (item.kind === "heading") {
-        // R1: a section that would split with <2 rows on this page starts next
-        // els mapping: flow index j consumes measurement element (idx + (j - i)).
-        const rowEls: HTMLElement[] = [];
-        for (let j = i + 1; j < flowItems.length; j++) {
-          const n = flowItems[j];
-          if (n.kind !== "entry" || n.section.id !== item.section.id) break;
-          rowEls.push(els[idx + (j - i)]);
-        }
-        let fitCount = 0;
-        let acc = height;
-        for (const nEl of rowEls) {
-          const nH = (nEl ? nEl.offsetHeight : 0) + spacing.item;
-          if (currentHeight + acc + nH <= availableHeight) {
-            acc += nH;
-            fitCount++;
-          } else break;
-        }
-        const wouldSplit = fitCount < rowEls.length;
-        if (
-          wouldSplit &&
-          fitCount < 2 &&
-          rowEls.length >= 2 &&
-          pageItems.length > 0
-        ) {
-          flush();
-          currentHeight = 0;
-        }
-        pageItems.push({ item, height });
-        currentHeight += height;
-        continue;
+      // User-controlled break: section explicitly set to start on a fresh page.
+      if (
+        item.kind === "heading" &&
+        pageItems.length > 0 &&
+        (item.section.layout_config as Record<string, unknown> | null)?.page_break_before === true
+      ) {
+        flush();
+        currentHeight = 0;
       }
 
-      // Entry rows flow naturally (R2)
+      // Pure flow: fills the current page; break only when the item doesn't fit.
       if (currentHeight + height > availableHeight && pageItems.length > 0) {
-        // R3: no 1-row orphan — last row of a section carries its predecessor
-        const isLastRowOfSection =
-          !flowItems[i + 1] ||
-          flowItems[i + 1].kind === "heading" ||
-          flowItems[i + 1].section.id !== item.section.id;
-        if (isLastRowOfSection) {
-          let prevIdx = -1;
-          for (let j = pageItems.length - 1; j >= 0; j--) {
-            const p = pageItems[j].item;
-            if (p.kind === "heading") break;
-            if (p.section.id === item.section.id) {
-              prevIdx = j;
-              break;
-            }
-          }
-          if (prevIdx >= 0 && pageItems.length - 1 > prevIdx) {
-            const carried = pageItems.splice(prevIdx);
-            const carriedHeight = carried.reduce((a, b) => a + b.height, 0);
-            flush();
-            currentHeight = 0;
-            pageItems = carried;
-            currentHeight += carriedHeight;
-            pageItems.push({ item, height });
-            currentHeight += height;
-            continue;
-          }
-        }
         flush();
         currentHeight = 0;
       }
@@ -577,10 +509,10 @@ export function CVPreview({
     flush();
 
     setAutoPages(pages.length > 0 ? pages : [enabledSectionsWithEntries]);
-  }, [useAutoPaginate, flowItems, pageMargin, spacing.section, spacing.item, fontStack, activeLang, enabledSectionsWithEntries]);
+  }, [useAutoPaginate, flowItems, pageMargin, spacing.section, spacing.item, lineHeight, fontStack, activeLang, enabledSectionsWithEntries]);
 
-  // Use auto pages if available, otherwise manual
-  const pages = useAutoPaginate && autoPages.length > 0 ? autoPages : manualPages;
+  // Pages come from the auto-pagination flow measurement above.
+  const pages = autoPages.length > 0 ? autoPages : [enabledSectionsWithEntries];
 
   // Responsive scaling: scale the A4 page to fit the container width on mobile
   const [scale, setScale] = useState(1);

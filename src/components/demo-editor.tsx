@@ -132,7 +132,6 @@ export function DemoEditor() {
   const [designForm, setDesignForm] = useState<Partial<CVDesign>>(() => getDemoDesign());
   const [designDirty, setDesignDirty] = useState(false);
   const [designSaved, setDesignSaved] = useState(false);
-  const [pageBreaks, setPageBreaks] = useState<number[]>([]);
   const [pdfExporting, setPdfExporting] = useState(false);
   const [profilePicture, setProfilePictureState] = useState<string | null>(null);
   const [includePhotoInPdf, setIncludePhotoInPdf] = useState(true);
@@ -153,7 +152,6 @@ export function DemoEditor() {
     setProfileTitle(getDemoProfile().title);
     setActiveLang("hu");
     setLanguages(DEMO_LANGUAGES);
-    setPageBreaks([]);
     setDesignDirty(false);
     setDesignSaved(false);
     // Clear localStorage so reload also gets fresh demo data
@@ -248,7 +246,6 @@ export function DemoEditor() {
         sections,
         design: designForm,
         activeLang,
-        pageBreaks,
       };
       await exportToPdf(previewRef.current, {
         profileName: profileName || "CV",
@@ -515,25 +512,13 @@ export function DemoEditor() {
     setTimeout(() => setDesignSaved(false), 2000);
   };
 
-  // ─── Section layout config ──────────────────────────────────────────────
+  // ─── Section layout config (incl. page_break_before checkbox) ────────────
 
   const handleSectionLayoutChange = (sectionId: string, layoutKey: string, value: unknown) => {
     const section = sections.find((s) => s.id === sectionId);
     if (!section) return;
     const newConfig = { ...section.layout_config, [layoutKey]: value };
     handleUpdateSection(sectionId, { layout_config: newConfig });
-  };
-
-  // ─── Page break handlers ────────────────────────────────────────────────
-
-  const handleAddPageBreak = (afterIdx: number) => {
-    if (!pageBreaks.includes(afterIdx + 1)) {
-      setPageBreaks([...pageBreaks, afterIdx + 1].sort((a, b) => a - b));
-    }
-  };
-
-  const handleRemovePageBreak = (idx: number) => {
-    setPageBreaks(pageBreaks.filter((b) => b !== idx));
   };
 
   const showEditor = viewMode === "edit" || (!isMobile && viewMode === "split");
@@ -885,9 +870,6 @@ export function DemoEditor() {
                           }
                           onDragEndEntry={(event) => handleDragEndEntry(section.id, event)}
                           onLayoutChange={(key, val) => handleSectionLayoutChange(section.id, key, val)}
-                          onAddPageBreak={() => handleAddPageBreak(sectionIdx)}
-                          onRemovePageBreak={() => handleRemovePageBreak(sectionIdx + 1)}
-                          hasPageBreakAfter={pageBreaks.includes(sectionIdx + 1)}
                         />
                       ))}
                     </div>
@@ -926,11 +908,9 @@ export function DemoEditor() {
                   sections={sections}
                   design={designForm}
                   activeLang={activeLang}
-                  pageBreaks={pageBreaks}
                   profileName={profileName}
                   profileTitle={profileTitle}
                   profilePicture={includePhotoInPdf ? profilePicture : null}
-                  showPageBreaks
                 />
               </div>
             </div>
