@@ -1448,12 +1448,24 @@ export function SortableEntryRow({
   const [title, setTitle] = useState(translation?.title ?? "");
   const [organization, setOrganization] = useState(translation?.organization ?? "");
   const [description, setDescription] = useState(translation?.description ?? "");
+  // Year is TEXT in the UI (accepts "2017", "2017-2021", "2024–"): the DB
+  // column is int4, so only a value parseable as a year is persisted;
+  // range strings display fine but the int column keeps leading digit year.
+  const [yearText, setYearText] = useState(entry.year != null ? String(entry.year) : "");
 
   useEffect(() => {
     setTitle(translation?.title ?? "");
     setOrganization(translation?.organization ?? "");
     setDescription(translation?.description ?? "");
   }, [translation?.title, translation?.organization, translation?.description]);
+  // Sync year field when the entry's year changes elsewhere (add-entry default).
+  // data.year_text (free-text year, e.g. "2017-2021") wins over the int year.
+  useEffect(() => {
+    setYearText(
+      (entry.data as { year_text?: string } | undefined)?.year_text ??
+        (entry.year != null ? String(entry.year) : "")
+    );
+  }, [entry.year, entry.data]);
 
   const handleSaveLang = () => {
     onSaveTranslation(activeLang, {
@@ -1461,6 +1473,33 @@ export function SortableEntryRow({
       organization: organization.trim(),
       description: description.replace(/\n{3,}/g, "\n\n").trim(),
     });
+  };
+
+  // Persist the year freely on blur: a plain 4-digit year also writes the
+  // int `year` column (sorting); ranges like "2017-2021" or "2024–" persist
+  // verbatim in data.year_text (jsonb — the int column can't hold them) and
+  // win over data in preview/PDF display.
+  const handleYearBlur = () => {
+    const t = yearText.trim();
+    if (t === "") {
+      const patch: Record<string, unknown> = { data: { ...(entry.data ?? {}), year_text: null } };
+      if (entry.year != null) patch.year = null;
+      if (entry.year != null || (entry.data as { year_text?: string } | undefined)?.year_text) {
+        onUpdate(patch);
+      }
+      return;
+    }
+    const plain = t.match(/^\d{4}$/) ? parseInt(t, 10) : null;
+    const patch: Record<string, unknown> = { data: { ...(entry.data ?? {}), year_text: t } };
+    if (plain !== null && plain >= 1900 && plain <= 2999) {
+      patch.year = plain;
+    } else if (plain === null && entry.year != null) {
+      // Range or free text: keep a numeric start year for sorting if the
+      // text begins with a 4-digit year, else clear the int column.
+      const m = t.match(/^(\d{4})/);
+      patch.year = m ? parseInt(m[1], 10) : null;
+    }
+    onUpdate(patch);
   };
 
   // Count how many languages have translations for this entry
@@ -1504,14 +1543,14 @@ export function SortableEntryRow({
       <div className="flex-1 min-w-0 space-y-1.5">
         <div className="flex gap-2 flex-wrap">
           <input
-            type="number"
-            value={entry.year ?? ""}
-            onChange={(e) => {
-              const year = e.target.value ? parseInt(e.target.value) : null;
-              onUpdate({ year });
-            }}
-            placeholder="Year"
-            className="w-20 text-sm rounded-lg border border-gray-200 px-2 py-1.5 bg-white flex-shrink-0 focus:border-teal-500 focus:outline-none"
+            type="text"
+            inputMode="numeric"
+            value={yearText}
+            onChange={(e) => setYearText(e.target.value)}
+            onBlur={handleYearBlur}
+            placeholder="Year (2017–21 ok)"
+            title="Year: a single year (2017) or a range (2017-2021 — stores the start year)"
+            className="w-24 text-sm rounded-lg border border-gray-200 px-2 py-1.5 bg-white flex-shrink-0 focus:border-teal-500 focus:outline-none"
           />
           <input
             type="text"

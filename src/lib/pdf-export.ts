@@ -501,11 +501,16 @@ function renderEntry(
   const bodyFontSize = px2pt(14);    // text-sm
   const yearFontSize = px2pt(12);    // text-xs
 
+  // Free-text year (e.g. "2017-2021") wins over the int year column
+  const yearText = sanitizeText(
+    (((entry.data as { year_text?: string } | undefined)?.year_text ?? "") as string) ||
+    (year != null && year !== 0 ? String(year) : "")
+  );
+
   if (title) {
     setFont(ctx, "bold", titleFontSize);
     setText(ctx, primary);
 
-    const yearText = year != null && year !== 0 ? String(year) : "";
     const yearW = yearText ? doc.getTextWidth(yearText) + px2pt(12) : 0;
     const titleMaxWidth = contentWidth - yearW;
     const titleLines = doc.splitTextToSize(title, titleMaxWidth) as string[];
@@ -797,7 +802,10 @@ function flowLayout(
     if (title) {
       setFont(ctx, "bold", titleFontSize);
       // Reserve space for the right-aligned year like the real renderer does
-      const yearText = entry.year != null && entry.year !== 0 ? String(entry.year) : "";
+      // (free-text year e.g. "2017-2021" wins over the int year column).
+      const yearText =
+        ((entry.data as { year_text?: string } | undefined)?.year_text ?? "") ||
+        (entry.year != null && entry.year !== 0 ? String(entry.year) : "");
       const yearW = yearText ? doc.getTextWidth(yearText) + px2pt(12) : 0;
       const lines = doc.splitTextToSize(title, Math.max(40, width - yearW)) as string[];
       h += lines.length * titleFontSize;

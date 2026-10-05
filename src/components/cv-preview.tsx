@@ -202,7 +202,11 @@ export function CVPreview({
     const title = sanitizeText(translation?.title ?? "");
     const organization = sanitizeText(translation?.organization ?? "");
     const description = sanitizeText(translation?.description ?? "");
-    const year = entry.year;
+    // Free-text year (e.g. "2017-2021") wins over the int year column
+    const yearText = sanitizeText(
+      ((entry.data as { year_text?: string } | undefined)?.year_text ?? "") ||
+      (entry.year != null && entry.year !== 0 ? String(entry.year) : "")
+    );
 
     return (
       <div
@@ -213,9 +217,9 @@ export function CVPreview({
           <span className="font-semibold" style={{ color: primary, fontSize: "0.95rem" }}>
             {title}
           </span>
-          {year != null && year !== 0 && (
+          {yearText && (
             <span className="text-xs font-medium whitespace-nowrap" style={{ color: mutedColor }}>
-              {year}
+              {yearText}
             </span>
           )}
         </div>
