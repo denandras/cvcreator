@@ -352,6 +352,10 @@ interface RenderContext {
   fontFam: string; // "helvetica" or "times" (built-in fallback)
   fontStyles?: Record<FontStyle, string>; // embedded per-style families
   embedded: boolean;
+  /** Description placement: "below" (own line) or "inline" (after title/org) */
+  inlineDesc: boolean;
+  /** Separator used in inline placement ("—", ":", "·", "•", "|") */
+  descSeparator: string;
 }
 
 // ─── Effective colors (custom overrides win over palette) ────────────────────
@@ -535,12 +539,31 @@ function renderEntry(
   }
 
   if (description) {
-    setFont(ctx, "italic", bodyFontSize);
-    setText(ctx, ctx.textColor);
-    const descLines = wrapText(doc, description, contentWidth);
-    const lineH = bodyFontSize * spacing.lineHeight;
-    doc.text(descLines, pageMargin, y + bodyFontSize * 0.4);
-    y += descLines.length * lineH;
+    if (ctx.inlineDesc) {
+      // Inline placement: the description joins the organization's line (or
+      // starts its own line with the separator when there's no organization),
+      // wrapped across the full content width — saves a line per entry.
+      const combo = organization
+        ? `${organization} ${ctx.descSeparator} ${description}`
+        : `${ctx.descSeparator} ${description}`;
+      const comboLines = wrapText(doc, combo, contentWidth);
+      if (organization) {
+        // Roll back the org block's advance; redraw org+desc as one block.
+        const orgLines2 = doc.splitTextToSize(organization, contentWidth) as string[];
+        y -= orgLines2.length * (bodyFontSize * 1.1);
+      }
+      setFont(ctx, "italic", bodyFontSize);
+      setText(ctx, ctx.textColor);
+      doc.text(comboLines, pageMargin, y + bodyFontSize * 0.4);
+      y += comboLines.length * (bodyFontSize * spacing.lineHeight);
+    } else {
+      setFont(ctx, "italic", bodyFontSize);
+      setText(ctx, ctx.textColor);
+      const descLines = wrapText(doc, description, contentWidth);
+      const lineH = bodyFontSize * spacing.lineHeight;
+      doc.text(descLines, pageMargin, y + bodyFontSize * 0.4);
+      y += descLines.length * lineH;
+    }
   }
 
   y += px2pt(spacing.item);
@@ -810,15 +833,24 @@ function flowLayout(
       const lines = doc.splitTextToSize(title, Math.max(40, width - yearW)) as string[];
       h += lines.length * titleFontSize;
     }
-    if (organization) {
+    // Inline description placement: org+description share one wrapped block
+    // (MUST mirror renderEntry's combo block, else pagination drifts).
+    if (ctx.inlineDesc && description && organization) {
       setFont(ctx, "italic", bodyFontSize);
-      const lines = doc.splitTextToSize(organization, width) as string[];
-      h += lines.length * (bodyFontSize * 1.1);
-    }
-    if (description) {
-      setFont(ctx, "italic", bodyFontSize);
-      const lines = wrapText(doc, description, width);
-      h += lines.length * bodyFontSize * spacing.lineHeight;
+      const combo = `${organization} ${ctx.descSeparator} ${description}`;
+      const lines = wrapText(doc, combo, width);
+      h += lines.length * bodyFontSize * spacing.lineHeight + bodyFontSize * 0.4;
+    } else {
+      if (organization) {
+        setFont(ctx, "italic", bodyFontSize);
+        const lines = doc.splitTextToSize(organization, width) as string[];
+        h += lines.length * (bodyFontSize * 1.1);
+      }
+      if (description) {
+        setFont(ctx, "italic", bodyFontSize);
+        const lines = wrapText(doc, description, width);
+        h += lines.length * bodyFontSize * spacing.lineHeight + bodyFontSize * 0.4;
+      }
     }
     h += px2pt(spacing.item);
     return h;
@@ -1187,6 +1219,10 @@ export async function exportToPdf(
     pageMarginColor: colors.bg,
     textColor: colors.text,
     mutedColor: colors.muted,
+    // Description placement (custom_config): "below" default, or "inline"
+    inlineDesc: ((design.custom_config?.descriptionPlacement as string) ?? "below") === "inline",
+    descSeparator:
+      ((design.custom_config?.descriptionSeparator as string) ?? "—") || "—",
     profileRim,
     profileRadius,
     profileImagePosition,

@@ -46,6 +46,11 @@ export function CVPreview({
   const profileRadius = (design.custom_config?.profileRadius as number) ?? 48;
   // Profile image position: "left" (default) or "right"
   const profileImagePosition = (design.custom_config?.profileImagePosition as string) ?? "left";
+  // Description placement: "below" (default) or "inline" after the title with
+  // a separator ("—" dash, ":", "·", "•", "|")
+  const descriptionPlacement = (design.custom_config?.descriptionPlacement as string) ?? "below";
+  const inlineDesc = descriptionPlacement === "inline";
+  const descSeparator = ((design.custom_config?.descriptionSeparator as string) ?? "—") || "—";
   // Per-role color overrides — custom values win over the palette
   const pageMarginColor = (design.custom_config?.marginColor as string) ?? palette.bg;
   const textColor = (design.custom_config?.textColor as string) ?? palette.text;
@@ -229,9 +234,19 @@ export function CVPreview({
           </div>
         )}
         {description && (
-          <div className="text-sm italic mt-1" style={{ color: textColor, whiteSpace: "pre-line" }}>
-            {description}
-          </div>
+          // Description placement: custom_config.descriptionPlacement controls
+          // "below" (default, own line) or "inline" (runs after the title with
+          // a separator — saves vertical space).
+          inlineDesc ? (
+            <div className="text-sm italic" style={{ color: textColor, whiteSpace: "pre-line" }}>
+              <span style={{ color: mutedColor }}>{descSeparator}</span>
+              {description}
+            </div>
+          ) : (
+            <div className="text-sm italic mt-1" style={{ color: textColor, whiteSpace: "pre-line" }}>
+              {description}
+            </div>
+          )
         )}
       </div>
     );

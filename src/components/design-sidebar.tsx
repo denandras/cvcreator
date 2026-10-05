@@ -40,7 +40,7 @@ export function DesignSidebar({
 
   const tabs = [
     { id: "template" as const, label: "Template", icon: "Layout" },
-    { id: "typography" as const, label: "Fonts", icon: "Type" },
+    { id: "typography" as const, label: "Text", icon: "Type" },
     { id: "colors" as const, label: "Colors", icon: "Palette" },
     { id: "layout" as const, label: "Layout", icon: "Settings" },
   ];
@@ -383,6 +383,59 @@ export function DesignSidebar({
               <p className="text-xs text-gray-400 mt-1">
                 Applies to every section headline. Auto follows the active template&apos;s default.
               </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                Description Placement
+              </label>
+              <div className="flex items-center bg-white rounded-md p-0.5 border border-gray-200">
+                {[
+                  ["below", "Below title"],
+                  ["inline", "Inline (saves space)"],
+                ].map(([v, label]) => {
+                  const current = (design.custom_config?.descriptionPlacement as string) ?? "below";
+                  return (
+                    <button
+                      key={v}
+                      onClick={() => onChange("custom_config", { ...(design.custom_config ?? {}), descriptionPlacement: v })}
+                      className={`flex-1 px-2 py-1.5 text-xs rounded transition-colors ${
+                        current === v
+                          ? "bg-teal-50 text-teal-600 font-medium"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              {((design.custom_config?.descriptionPlacement as string) ?? "below") === "inline" && (
+                <div className="mt-2">
+                  <span className="block text-xs font-medium text-gray-500 mb-1.5">Separator</span>
+                  <div className="flex gap-1.5">
+                    {["—", ":", "·", "•", "|", "[]"].map((sep) => {
+                      const current = (design.custom_config?.descriptionSeparator as string) ?? "—";
+                      return (
+                        <button
+                          key={sep}
+                          onClick={() => onChange("custom_config", { ...(design.custom_config ?? {}), descriptionSeparator: sep })}
+                          className={`flex-1 px-2 py-1.5 text-xs rounded border-2 transition-all font-mono ${
+                            current === sep
+                              ? "border-teal-500 bg-teal-50 text-teal-700"
+                              : "border-gray-200 text-gray-600 hover:border-gray-300"
+                          }`}
+                        >
+                          {sep === "—" ? "—" : sep}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Inline entries render as: Title — description text wrapped on the same line(s).
+                  </p>
+                </div>
+              )}
             </div>
 
             <div>
