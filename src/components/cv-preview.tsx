@@ -231,7 +231,12 @@ export function CVPreview({
   const renderSection = (section: SectionWithEntries) => {
     const twoCol = isTwoColumn(section);
     const isContinuation = (section as SectionWithEntries & { isContinuation?: boolean }).isContinuation === true;
-    const meta = section as SectionWithEntries & { twoColCounts?: { c1: number; c2: number } };
+    const meta = section as SectionWithEntries & {
+      twoColRows?: Array<{
+        left: SectionWithEntries["entries"][0];
+        right: SectionWithEntries["entries"][0] | null;
+      }>;
+    };
     return (
       <div
         key={section.id}
@@ -243,12 +248,24 @@ export function CVPreview({
         {!isContinuation && renderHeading(sanitizeText(section.title))}
         {twoCol ? (
           (() => {
-            const counts = meta.twoColCounts;
-            const splitAt = counts
-              ? counts.c1
-              : Math.ceil(section.entries.length / 2);
-            const col1 = section.entries.slice(0, splitAt);
-            const col2 = section.entries.slice(splitAt);
+            const rows = meta.twoColRows;
+            if (rows && rows.length > 0) {
+              // Split-section rows: exact [left, right] pairs recorded by the
+              // pagination flush — renders exactly what the PDF renders.
+              return (
+                <div>
+                  {rows.map((row, i) => (
+                    <div key={row.left?.id ?? i} style={{ display: "flex", gap: `${spacing.item * 4}px` }}>
+                      <div style={{ flex: 1 }}>{row.left ? renderEntry(row.left) : null}</div>
+                      <div style={{ flex: 1 }}>{row.right ? renderEntry(row.right) : null}</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            }
+            const mid = Math.ceil(section.entries.length / 2);
+            const col1 = section.entries.slice(0, mid);
+            const col2 = section.entries.slice(mid);
             return (
               <div style={{ display: "flex", gap: `${spacing.item * 4}px` }}>
                 <div style={{ flex: 1 }}>{col1.map(renderEntry)}</div>
@@ -403,7 +420,10 @@ export function CVPreview({
     const innerContent = measureEl.firstElementChild as HTMLElement;
     if (!innerContent) return;
 
-    const availableHeight = PAGE_HEIGHT - pageMargin * 2;
+    // Mirror the PDF's bottom bound exactly: ink may reach pageH - one margin
+    // (exporter: pageHeightPt - pageMargin). Using two margins here would make
+    // the preview break pages before the PDF does.
+    const availableHeight = PAGE_HEIGHT - pageMargin;
 
     const contentHeight = innerContent.scrollHeight;
     if (contentHeight <= availableHeight) {
@@ -450,21 +470,26 @@ export function CVPreview({
         if (it.entry) {
           rec.group.entries.push(it.entry);
         } else if (it.block && it.blockRange) {
-          // Two-column row item: push col1[r] then col2[r], accumulate counts
+          // Two-column row item: store the exact [left, right] pair on the
+          // group — the renderer consumes twoColRows directly, so counts
+          // or positional decoding can't scramble the columns.
           const r = it.blockRange.start;
           const half = Math.ceil(s.entries.length / 2);
           const col1 = s.entries.slice(0, half);
           const col2 = s.entries.slice(half);
+          const g = rec.group as SectionWithEntries & {
+            twoColRows?: Array<{
+              left: SectionWithEntries["entries"][0];
+              right: SectionWithEntries["entries"][0] | null;
+            }>;
+          };
+          if (!g.twoColRows) g.twoColRows = [];
+          g.twoColRows.push({
+            left: col1[r],
+            right: r < col2.length ? col2[r] : null,
+          });
           if (r < col1.length) rec.group.entries.push(col1[r]);
           if (r < col2.length) rec.group.entries.push(col2[r]);
-          const g = rec.group as SectionWithEntries & {
-            twoColCounts?: { c1: number; c2: number };
-          };
-          const prev = g.twoColCounts ?? { c1: 0, c2: 0 };
-          g.twoColCounts = {
-            c1: prev.c1 + (r < col1.length ? 1 : 0),
-            c2: prev.c2 + (r < col2.length ? 1 : 0),
-          };
         } else if (it.block) {
           // Whole two-column block fallback: all entries
           rec.group.entries.push(...s.entries);
@@ -499,9 +524,19 @@ export function CVPreview({
       }
 
       // Pure flow: fills the current page; break only when the item doesn't fit.
+      // Mirror the PDF's trailing-gap waiver: the previous item's terminal
+      // spacing.item padding is invisible when it ends the page, so shrink it
+      // before retrying the fit (keeps knife-edge rows on the same page).
       if (currentHeight + height > availableHeight && pageItems.length > 0) {
-        flush();
-        currentHeight = 0;
+        const prevPadding = item.kind === "heading" ? 0 : spacing.item;
+        if (currentHeight - prevPadding + height <= availableHeight) {
+          currentHeight -= prevPadding;
+          const prevPlaced = pageItems[pageItems.length - 1];
+          if (prevPlaced) prevPlaced.height -= prevPadding;
+        } else {
+          flush();
+          currentHeight = 0;
+        }
       }
       pageItems.push({ item, height });
       currentHeight += height;

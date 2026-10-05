@@ -31,6 +31,8 @@ interface PdfExportOptions {
   profileName?: string;
   /** Whether to include the photo */
   includePhoto?: boolean;
+  /** "save" (default, browser download) or "arraybuffer" (returns bytes — used by tests/harnesses) */
+  output?: "save" | "arraybuffer";
 }
 
 // ─── Font embedding ───────────────────────────────────────────────────────────
@@ -554,50 +556,64 @@ function renderSection(
     template.twoColumnDefault;
 
   // Continuation of a section split across pages: entries only, no heading.
+  // A continuation group is always the first group on its page (flow order:
+  // the rows that broke onto the new page come first), so start exactly at
+  // pageTop — subtracting a "tight gap" here pushed the first line ~7.5pt
+  // above the top margin (ink yMin 20.7pt vs margin 36pt in bbox audits).
   const isContinuation = (section as SectionWithEntries & { isContinuation?: boolean }).isContinuation === true;
   if (!isContinuation) {
     y = renderHeading(ctx, sanitizeText(section.title), y);
-  } else {
-    y -= px2pt(spacing.item) + px2pt(2); // tight gap between split chunks
   }
 
   if (twoCol && section.entries.length > 1) {
     const colGap = px2pt(spacing.item * 4);
     const colWidth = (contentWidth - colGap) / 2;
 
-    // Split-block metadata: flush() pushed [col1 entries, col2 entries] of
-    // this chunk in order and recorded their counts.
+    // Split-block metadata: flush() recorded the exact [left, right] entry
+    // pair per row (twoColRows). Prefer that; fall back to the classic
+    // halving when absent (whole section on one page, no split).
     const meta = section as SectionWithEntries & {
-      twoColCounts?: { c1: number; c2: number };
+      twoColRows?: Array<{
+        left: SectionWithEntries["entries"][0];
+        right: SectionWithEntries["entries"][0] | null;
+      }>;
     };
-    let col1: SectionWithEntries["entries"];
-    let col2: SectionWithEntries["entries"];
-    if (meta.twoColCounts) {
-      col1 = section.entries.slice(0, meta.twoColCounts.c1);
-      col2 = section.entries.slice(meta.twoColCounts.c1);
+    const rowsMeta = meta.twoColRows;
+    if (rowsMeta && rowsMeta.length > 0) {
+      const ctxCol: RenderContext = { ...ctx, contentWidth: colWidth };
+      const ctxCol2: RenderContext = {
+        ...ctx,
+        contentWidth: colWidth,
+        pageMargin: pageMargin + colWidth + colGap,
+      };
+      for (const row of rowsMeta) {
+        const yL = row.left ? renderEntry(ctxCol, row.left, y) : y;
+        const yR = row.right ? renderEntry(ctxCol2, row.right, y) : y;
+        y = Math.max(yL, yR);
+      }
     } else {
       const mid = Math.ceil(section.entries.length / 2);
-      col1 = section.entries.slice(0, mid);
-      col2 = section.entries.slice(mid);
-    }
+      const col1 = section.entries.slice(0, mid);
+      const col2 = section.entries.slice(mid);
 
-    const yStart = y;
-    const ctxCol1: RenderContext = { ...ctx, contentWidth: colWidth };
-    for (const entry of col1) {
-      y = renderEntry(ctxCol1, entry, y);
-    }
-    const yAfterCol1 = y;
+      const yStart = y;
+      const ctxCol1: RenderContext = { ...ctx, contentWidth: colWidth };
+      for (const entry of col1) {
+        y = renderEntry(ctxCol1, entry, y);
+      }
+      const yAfterCol1 = y;
 
-    y = yStart;
-    const ctxCol2: RenderContext = {
-      ...ctx,
-      contentWidth: colWidth,
-      pageMargin: pageMargin + colWidth + colGap,
-    };
-    for (const entry of col2) {
-      y = renderEntry(ctxCol2, entry, y);
+      y = yStart;
+      const ctxCol2: RenderContext = {
+        ...ctx,
+        contentWidth: colWidth,
+        pageMargin: pageMargin + colWidth + colGap,
+      };
+      for (const entry of col2) {
+        y = renderEntry(ctxCol2, entry, y);
+      }
+      y = Math.max(y, yAfterCol1);
     }
-    y = Math.max(y, yAfterCol1);
   } else {
     for (const entry of section.entries) {
       y = renderEntry(ctx, entry, y);
@@ -702,8 +718,39 @@ interface FlowItem {
   blockRange?: { start: number; end: number };
 }
 
-/** Height of the heading + trailing gap in pt (heading 18pt font + 12px gap + safety) */
-const HEADING_BLOCK_PT = px2pt(18) + px2pt(12) + px2pt(8);
+/** Per-style heading advance in pt — MUST equal renderHeading's return
+ * advance for the given headingStyle: underline/border/default = y+px2pt(12),
+ * "filled" = y-fontSize+boxH+px2pt(12) = y+18pt (fontSize 13.5, boxH 22.5),
+ * "minimal" = y+px2pt(8). The heading glyph/box extends UPWARD from the
+ * baseline; that space is covered by the PREVIOUS item's gap, so only the
+ * downward advance counts here. */
+function headingAdvancePt(headingStyle: string): number {
+  switch (headingStyle) {
+    case "filled":
+      return 18; // pt: -fontSize(13.5) + boxH(22.5) + 9 (=12px)
+    case "minimal":
+      return px2pt(8);
+    default:
+      return px2pt(12);
+  }
+}
+
+/** Exact height the profile header will consume on page 1 — MUST mirror
+ * renderProfileHeader. The photo branch is 96px + 2×section gap + 16px rim/
+ * padding; the NO-photo branch is name/title block + divider ≈ 40px + 15pt
+ * + 15pt. Charging the photo height when no photo exists pushed every flow Y
+ * ~69pt below reality → premature first break (the "random extra page"). */
+function profileHeaderHeightPt(data: PdfCVData, spacingSection: number): number {
+  const hasNameOrTitle = Boolean(sanitizeText(data.profileName) || sanitizeText(data.profileTitle));
+  const hasPhoto = Boolean(data.profilePicture);
+  if (!hasNameOrTitle && !hasPhoto) return 0;
+  if (hasPhoto) {
+    return px2pt(96) + px2pt(spacingSection) * 2 + px2pt(16);
+  }
+  // No photo: name (12px→28px advance) or title (14px) + 40px block + 15pt divider gap ×2
+  const block = hasNameOrTitle ? px2pt(40) : 0;
+  return px2pt(40) + px2pt(spacingSection) * 2;
+}
 
 function flowLayout(
   ctx: RenderContext,
@@ -712,9 +759,16 @@ function flowLayout(
 ): SectionWithEntries[][] {
   const { doc, spacing, template, contentWidth, activeLang, pageMargin } = ctx;
   const pageTop = pageMargin;
-  const bottomLimit = ctx.pageHeightPt - pageMargin - px2pt(6); // breathing room
+  // The renderer can never place ink below pageHeightPt - pageMargin, so use
+  // the same bound for the break decision (an extra arbitrary breathing-room
+  // offset here breaks pages earlier than the render needs).
+  const bottomLimit = ctx.pageHeightPt - pageMargin;
 
   // ── Measure every flow item ──────────────────────────────────────────────
+  // CRITICAL: measurement MUST use the same fonts/sizes that renderEntry will
+  // use (embedded per-style families at bold 15.2pt / body 14pt), or wrap
+  // counts drift and the layout breaks pages earlier than the render needs —
+  // the visible symptom is a nearly-empty extra last page.
   interface Measured {
     item: FlowItem;
     height: number;
@@ -732,6 +786,7 @@ function flowLayout(
     const bodyFontSize = px2pt(14);
     let h = 0;
     if (title) {
+      setFont(ctx, "bold", titleFontSize);
       // Reserve space for the right-aligned year like the real renderer does
       const yearText = entry.year != null && entry.year !== 0 ? String(entry.year) : "";
       const yearW = yearText ? doc.getTextWidth(yearText) + px2pt(12) : 0;
@@ -739,10 +794,12 @@ function flowLayout(
       h += lines.length * titleFontSize;
     }
     if (organization) {
+      setFont(ctx, "italic", bodyFontSize);
       const lines = doc.splitTextToSize(organization, width) as string[];
       h += lines.length * (bodyFontSize * 1.1);
     }
     if (description) {
+      setFont(ctx, "italic", bodyFontSize);
       const lines = wrapText(doc, description, width);
       h += lines.length * bodyFontSize * spacing.lineHeight;
     }
@@ -759,31 +816,34 @@ function flowLayout(
       layout?.columns === "one" ? false :
       template.twoColumnDefault;
 
-    measured.push({ item: { kind: "heading", section }, height: HEADING_BLOCK_PT });
+    // Heading item = the heading's advance for this template's heading style
+    // PLUS the section's trailing gap (renderSection appends spacing.section
+    // after the body). The 18px-tall heading glyph extends UP from the
+    // baseline into the previous section's tail, so only the DOWNWARD
+    // advance is charged here. Empty sections render no tail.
+    const tail = px2pt(section.entries.length > 0 ? spacing.section : 0);
+    measured.push({
+      item: { kind: "heading", section },
+      height: headingAdvancePt(template.headingStyle) + tail,
+    });
 
     if (twoCol && section.entries.length > 1) {
       // Two-column: one flow item per ROW (col1[r] next to col2[r]) so rows
-      // flow across pages naturally. flush() recombines rows per page.
+      // flow across pages naturally. Row height = max of the two entries in
+      // that row — the same value the renderer produces when it stacks each
+      // column independently and takes Math.max of the column bottoms.
       const colGap = px2pt(spacing.item * 4);
       const colWidth = (contentWidth - colGap) / 2;
       const half = Math.ceil(section.entries.length / 2);
       const col1 = section.entries.slice(0, half);
       const col2 = section.entries.slice(half);
       const rows = Math.max(col1.length, col2.length);
-      const h1 = col1.map((e) => measureEntry(e, colWidth));
-      const h2 = col2.map((e) => measureEntry(e, colWidth));
-      let acc1 = 0;
-      let acc2 = 0;
       for (let r = 0; r < rows; r++) {
-        if (r < col1.length) acc1 += h1[r];
-        if (r < col2.length) acc2 += h2[r];
-        const prev = measured
-          .filter((m) => m.item.kind === "entry" && m.item.block && m.item.section.id === section.id)
-          .reduce((a, b) => a + b.height, 0);
-        const rowH = Math.max(acc1, acc2) - prev;
+        const h1 = r < col1.length ? measureEntry(col1[r], colWidth) : 0;
+        const h2 = r < col2.length ? measureEntry(col2[r], colWidth) : 0;
         measured.push({
           item: { kind: "entry", section, block: true, blockRange: { start: r, end: r + 1 } },
-          height: rowH,
+          height: Math.max(h1, h2),
         });
       }
     } else {
@@ -803,6 +863,9 @@ function flowLayout(
   const pages: SectionWithEntries[][] = [];
   let pageItems: Measured[] = [];
   let currentY = pageTop + headerHeightPt;
+  // Continuation-gap bookkeeping (see charge/arm sites in the loop below).
+  let contTailDue = 0;
+  let contTailSection: string | null = null;
 
   const flush = () => {
     if (pageItems.length === 0) return;
@@ -830,21 +893,23 @@ function flowLayout(
       if (item.entry) {
         rec.group.entries.push(item.entry);
       } else if (item.block && item.blockRange) {
-        // Two-column row item: push col1[r] then col2[r], accumulate counts
+        // Two-column row item: store the exact [left, right] pair on the
+        // group — the renderer consumes twoColRows directly, so no counts
+        // or positional decoding is needed.
         const r = item.blockRange.start;
         const half = Math.ceil(s.entries.length / 2);
         const col1 = s.entries.slice(0, half);
         const col2 = s.entries.slice(half);
-        if (r < col1.length) rec.group.entries.push(col1[r]);
-        if (r < col2.length) rec.group.entries.push(col2[r]);
         const meta = rec.group as SectionWithEntries & {
-          twoColCounts?: { c1: number; c2: number };
+          twoColRows?: Array<{ left: SectionWithEntries["entries"][0]; right: SectionWithEntries["entries"][0] | null }>;
         };
-        const prev = meta.twoColCounts ?? { c1: 0, c2: 0 };
-        meta.twoColCounts = {
-          c1: prev.c1 + (r < col1.length ? 1 : 0),
-          c2: prev.c2 + (r < col2.length ? 1 : 0),
-        };
+        if (!meta.twoColRows) meta.twoColRows = [];
+        meta.twoColRows.push({
+          left: col1[r],
+          right: r < col2.length ? col2[r] : null,
+        });
+        rec.group.entries.push(col1[r]);
+        if (r < col2.length) rec.group.entries.push(col2[r]);
       } else if (item.block) {
         // Whole two-column block (single row fallback): all entries
         rec.group.entries.push(...s.entries);
@@ -866,6 +931,18 @@ function flowLayout(
   for (let i = 0; i < measured.length; i++) {
     const m = measured[i];
 
+    // The renderer adds a tight continuation gap (item gap + 2px) between a
+    // split section's continuation rows and the next group on the same page
+    // (see renderSection). Mirror it in measurement: charge once, after the
+    // continuation's rows, before the first item of a different group.
+    if (
+      contTailDue > 0 &&
+      (m.item.kind !== "entry" || !m.item.block || m.item.section.id !== contTailSection)
+    ) {
+      currentY += contTailDue;
+      contTailDue = 0;
+    }
+
     // User-controlled break: this section was explicitly set to start on a
     // fresh page (checkbox in the editor). Only applies at the section's
     // heading, and never when the page is already empty.
@@ -879,10 +956,33 @@ function flowLayout(
     }
 
     // Pure flow (R2): everything fills the current page; break only when the
-    // next item genuinely doesn't fit.
+    // next item genuinely doesn't fit. The previous item's trailing item-gap
+    // is charged in its measured height but is invisible when it ends the
+    // page (nothing follows it before the break) — waive it so knife-edge
+    // rows aren't pushed over by dead space.
     if (currentY + m.height > bottomLimit && pageItems.length > 0) {
-      flush();
-      currentY = pageTop;
+      const prevHeight =
+        m.item.kind === "heading" || !measured[i - 1] ? 0 : px2pt(spacing.item);
+      if (currentY - prevHeight + m.height <= bottomLimit) {
+        currentY -= prevHeight;
+        const prevPlaced = pageItems[pageItems.length - 1];
+        // Waiver only applies to gap-only padding, never to real ink height:
+        // shrink the stored height too, so render's own advance matches.
+        if (prevPlaced) prevPlaced.height -= prevHeight;
+      } else {
+        flush();
+        currentY = pageTop;
+        // Mid-section break: the rows that land on the fresh page form a
+        // continuation group — arm the continuation tail for the next group.
+        const prev = measured[i - 1]?.item;
+        if (
+          (m.item.kind === "entry" && m.item.block) ||
+          (prev && prev.kind === "entry" && prev.block && prev.section.id === m.item.section.id)
+        ) {
+          contTailDue = px2pt(spacing.item) + px2pt(2);
+          contTailSection = m.item.section.id;
+        }
+      }
     }
     pageItems.push(m);
     currentY += m.height;
@@ -910,7 +1010,7 @@ function flowLayout(
 export async function exportToPdf(
   _element: HTMLElement,
   options: PdfExportOptions & { cvData?: PdfCVData } = {}
-): Promise<void> {
+): Promise<void | ArrayBuffer> {
   const data = options.cvData;
   if (!data) {
     throw new Error(
@@ -1014,10 +1114,7 @@ export async function exportToPdf(
   // Determine page distribution: always the flow layout (pure flow +
   // per-section page_break_before flags from layout_config).
   const pageSections = (() => {
-    let profileHeaderHeight = 0;
-    if (data.profileName || data.profileTitle || data.profilePicture) {
-      profileHeaderHeight = px2pt(96) + px2pt(spacing.section) * 2 + px2pt(16);
-    }
+    const profileHeaderHeight = profileHeaderHeightPt(data, spacing.section);
     return flowLayout(ctx, enabledSectionsWithEntries, profileHeaderHeight);
   })();
 
@@ -1043,5 +1140,6 @@ export async function exportToPdf(
     }
   }
 
+  if (options.output === "arraybuffer") return doc.output("arraybuffer");
   doc.save(filename);
 }
