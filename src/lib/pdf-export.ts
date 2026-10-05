@@ -1123,6 +1123,13 @@ export async function exportToPdf(
 
   const design = data.design;
   const template = getTemplate(design.template ?? "clean");
+  // Global heading-style override (custom_config.headingStyle, "auto" =
+  // template default) takes precedence over the template's own style.
+  const headingStyleOverride = (design.custom_config?.headingStyle as string) ?? "auto";
+  const headingStyle = headingStyleOverride === "auto"
+    ? template.headingStyle
+    : (headingStyleOverride as TemplateConfig["headingStyle"]);
+  const effectiveTemplate: TemplateConfig = { ...template, headingStyle };
   const palette = getPalette(
     (design.custom_config?.paletteId as string) ?? template.defaultPalette
   );
@@ -1162,7 +1169,7 @@ export async function exportToPdf(
   const ctx: RenderContext = {
     doc,
     palette,
-    template,
+    template: effectiveTemplate,
     spacing,
     borderRadius,
     pageMargin,

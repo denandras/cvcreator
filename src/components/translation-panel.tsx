@@ -123,13 +123,32 @@ export function TranslationPanel({
               const primaryTranslation = entry.translations.find((t) => t.language === primaryLang);
               const secondaryTranslation = entry.translations.find((t) => t.language === secondaryLang);
               const isEditing = editingEntryId === entry.id;
+              // Untranslated = no secondary translation with any content.
+              // Marked with a yellow left edge + badge so missing entries are
+              // obvious at a glance while scanning the panel.
+              const isUntranslated =
+                !secondaryTranslation ||
+                !(secondaryTranslation.title || secondaryTranslation.organization || secondaryTranslation.description);
 
               return (
-                <div key={entry.id} className="px-4 py-3">
+                <div
+                  key={entry.id}
+                  className={`px-4 py-3 ${isUntranslated ? "border-l-4 border-amber-400 bg-amber-50/40" : ""}`}
+                >
                   {/* Primary language reference (read-only) */}
                   <div className="mb-2">
-                    <div className="text-xs font-bold text-teal-600 mb-1">
-                      {primaryLangInfo?.label ?? primaryLang} (primary)
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-bold text-teal-600 mb-1">
+                        {primaryLangInfo?.label ?? primaryLang} (primary)
+                      </div>
+                      {isUntranslated && (
+                        <span
+                          className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5"
+                          title="This entry has no translation in the active language yet — the PDF will show the primary-language text instead"
+                        >
+                          Untranslated
+                        </span>
+                      )}
                     </div>
                     <div className="text-sm text-gray-700">
                       {primaryTranslation?.title && (
@@ -239,7 +258,9 @@ export function TranslationPanel({
                         )}
                       </div>
                     ) : (
-                      <div className="text-xs text-gray-400 italic">Not translated yet</div>
+                      <div className="text-xs text-amber-600 italic">
+                        Not translated yet — will render in {primaryLangInfo?.label ?? primaryLang} in the PDF
+                      </div>
                     )}
                   </div>
                 </div>

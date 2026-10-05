@@ -77,8 +77,13 @@ export function CVPreview({
     return template.twoColumnDefault;
   };
 
-  // Heading renderer
-  const headingStyle = template.headingStyle;
+  // Heading renderer — global override (custom_config.headingStyle, "auto" =
+  // template default) takes precedence over the template's own style.
+  const headingStyle =
+    ((design.custom_config?.headingStyle as string) ?? "auto") === "auto"
+      ? template.headingStyle
+      : ((design.custom_config?.headingStyle as string) as
+          | "underline" | "border" | "filled" | "minimal");
 
   const renderHeading = (title: string) => {
     // Bigger section titles: base size grew from 0.875rem; auto-shrink only

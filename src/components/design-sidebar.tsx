@@ -354,6 +354,39 @@ export function DesignSidebar({
           <div className="space-y-5">
             <div>
               <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                Heading Style
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  ["auto", "Auto"],
+                  ["underline", "Underline"],
+                  ["border", "Border"],
+                  ["filled", "Filled"],
+                  ["minimal", "Minimal"],
+                ].map(([v, label]) => {
+                  const current = (design.custom_config?.headingStyle as string) ?? "auto";
+                  return (
+                    <button
+                      key={v}
+                      onClick={() => onChange("custom_config", { ...(design.custom_config ?? {}), headingStyle: v })}
+                      className={`rounded-lg border-2 px-2 py-2 text-xs font-medium transition-all ${
+                        current === v
+                          ? "border-teal-500 bg-teal-50 text-teal-700"
+                          : "border-gray-200 text-gray-600 hover:border-gray-300"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Applies to every section headline. Auto follows the active template&apos;s default.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
                 Border Radius
                 <span className="ml-1 text-teal-600 normal-case tracking-normal">
                   {design.border_radius ?? 8}px

@@ -1215,7 +1215,6 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   const currentColumns = (section.layout_config?.columns as string) ?? "auto";
-  const currentHeading = (section.layout_config?.headingStyle as string) ?? "auto";
   const pageBreakBefore = (section.layout_config?.page_break_before as boolean) === true;
 
   return (
@@ -1327,24 +1326,6 @@ export function SortableSectionCard(props: SortableSectionCardProps) {
                     onClick={() => props.onLayoutChange("columns", c)}
                     className={`px-2 py-0.5 text-xs rounded transition-colors ${
                       currentColumns === c
-                        ? "bg-teal-50 text-teal-600 font-medium"
-                        : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-gray-400">Heading:</span>
-              <div className="flex items-center bg-white rounded-md p-0.5 border border-gray-200">
-                {[["auto", "Auto"], ["underline", "Underline"], ["border", "Border"], ["filled", "Filled"], ["minimal", "Minimal"]].map(([c, label]) => (
-                  <button
-                    key={c}
-                    onClick={() => props.onLayoutChange("headingStyle", c)}
-                    className={`px-2 py-0.5 text-xs rounded transition-colors ${
-                      currentHeading === c
                         ? "bg-teal-50 text-teal-600 font-medium"
                         : "text-gray-500 hover:text-gray-700"
                     }`}
