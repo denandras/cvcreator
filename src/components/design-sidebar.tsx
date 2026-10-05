@@ -329,12 +329,20 @@ export function DesignSidebar({
 
               <div className="grid grid-cols-2 gap-3">
                 <ColorField
-                  label="Background"
-                  hint="Page background"
+                  label="Margin"
+                  hint="Color around the page edge"
                   value={(design.custom_config?.marginColor as string) ?? ""}
                   fallback={getPalette(design.custom_config?.paletteId as string ?? "slate").bg}
                   onChange={(v) => onChange("custom_config", { ...(design.custom_config ?? {}), marginColor: v })}
                   onClear={() => onChange("custom_config", { ...(design.custom_config ?? {}), marginColor: undefined })}
+                />
+                <ColorField
+                  label="Content"
+                  hint="Background behind the text"
+                  value={(design.custom_config?.contentBgColor as string) ?? ""}
+                  fallback="#ffffff"
+                  onChange={(v) => onChange("custom_config", { ...(design.custom_config ?? {}), contentBgColor: v })}
+                  onClear={() => onChange("custom_config", { ...(design.custom_config ?? {}), contentBgColor: undefined })}
                 />
                 <ColorField
                   label="Dividers"
@@ -392,7 +400,7 @@ export function DesignSidebar({
               <div className="flex items-center bg-white rounded-md p-0.5 border border-gray-200">
                 {[
                   ["below", "Below title"],
-                  ["inline", "Inline (saves space)"],
+                  ["inline", "Inline"],
                 ].map(([v, label]) => {
                   const current = (design.custom_config?.descriptionPlacement as string) ?? "below";
                   return (
@@ -432,7 +440,7 @@ export function DesignSidebar({
                     })}
                   </div>
                   <p className="text-xs text-gray-400 mt-1">
-                    Inline entries render as: Title — description text wrapped on the same line(s).
+                    Inline entries render as: Title — description starting on the same line as the title.
                   </p>
                 </div>
               )}
@@ -492,7 +500,16 @@ export function DesignSidebar({
                   onChange={(e) => onChange("custom_config", { ...(design.custom_config ?? {}), marginColor: e.target.value })}
                   className="w-10 h-9 rounded-lg border border-gray-300 cursor-pointer"
                 />
-                <span className="text-xs text-gray-500">Page background color around content</span>
+                <span className="text-xs text-gray-500">Color around the page edge</span>
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  type="color"
+                  value={(design.custom_config?.contentBgColor as string) ?? "#ffffff"}
+                  onChange={(e) => onChange("custom_config", { ...(design.custom_config ?? {}), contentBgColor: e.target.value })}
+                  className="w-10 h-9 rounded-lg border border-gray-300 cursor-pointer"
+                />
+                <span className="text-xs text-gray-500">Content area background</span>
               </div>
             </div>
 

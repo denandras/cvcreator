@@ -90,8 +90,10 @@ export function EditorClient() {
   // Primary language — the main CV language (others are translations)
   const [primaryLang, setPrimaryLang] = useState("hu");
 
-  // View mode: edit / preview / split
-  const [viewMode, setViewMode] = useState<ViewMode>("edit");
+  // View mode: edit / preview / split — split is the desktop default
+  const [viewMode, setViewMode] = useState<ViewMode>(() =>
+    typeof window !== "undefined" && window.innerWidth >= 768 ? "split" : "edit"
+  );
 
   // Design sidebar
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -390,7 +392,7 @@ export function EditorClient() {
     try {
       const section = sections.find((s) => s.id === sectionId);
       const newEntry = await createEntry(sectionId, {
-        year: new Date().getFullYear(),
+        year: null,
         sort_order: section?.entries.length ?? 0,
       });
       setSections((prev) =>
@@ -579,7 +581,10 @@ export function EditorClient() {
   const handleApplyTemplate = (templateId: string) => {
     const tpl = getTemplate(templateId);
     setDesignForm((prev) => {
-      const { textColor, mutedColor, marginColor, surfaceColor, ...restCfg } =
+      // Template switch resets every color that the template/palette defines:
+      // per-role overrides AND the derived subtitle/content-bg colors — so
+      // custom tweaks from the previous template don't leak into the new one.
+      const { textColor, mutedColor, marginColor, surfaceColor, subtitleColor, contentBgColor, ...restCfg } =
         (prev.custom_config ?? {}) as Record<string, unknown>;
       return {
         ...prev,
@@ -600,7 +605,7 @@ export function EditorClient() {
   const handleApplyPalette = (paletteId: string) => {
     setDesignForm((prev) => {
       // Clear all custom color overrides — palette selection resets colors
-      const { textColor, mutedColor, marginColor, surfaceColor, ...restCfg } =
+      const { textColor, mutedColor, marginColor, surfaceColor, subtitleColor, contentBgColor, ...restCfg } =
         (prev.custom_config ?? {}) as Record<string, unknown>;
       return {
         ...prev,
@@ -614,6 +619,30 @@ export function EditorClient() {
     });
     setDesignDirty(true);
     setDesignSaved(false);
+  };
+
+  // Section title translation (secondary language) — stored in the section's
+  // layout_config.sectionTitleTranslations map (jsonb, no schema change).
+  const handleSaveSectionTitleTranslation = async (
+    sectionId: string,
+    lang: string,
+    title: string
+  ) => {
+    const section = sections.find((s) => s.id === sectionId);
+    if (!section) return;
+    const map = {
+      ...((section.layout_config as Record<string, unknown>).sectionTitleTranslations as
+        | Record<string, string>
+        | undefined),
+    };
+    if (title) map[lang] = title;
+    else delete map[lang];
+    await handleUpdateSection(sectionId, {
+      layout_config: {
+        ...(section.layout_config as Record<string, unknown>),
+        sectionTitleTranslations: map,
+      },
+    });
   };
 
   const handleSaveDesign = async () => {
@@ -979,6 +1008,7 @@ export function EditorClient() {
                           languages={languages}
                           onSaveTranslation={handleSaveTranslation}
                           onDeleteTranslation={handleDeleteTranslation}
+                          onSaveSectionTitle={handleSaveSectionTitleTranslation}
                         />
                       </>
                     ) : (
@@ -1544,12 +1574,11 @@ export function SortableEntryRow({
         <div className="flex gap-2 flex-wrap">
           <input
             type="text"
-            inputMode="numeric"
             value={yearText}
             onChange={(e) => setYearText(e.target.value)}
             onBlur={handleYearBlur}
-            placeholder="Year (2017–21 ok)"
-            title="Year: a single year (2017) or a range (2017-2021 — stores the start year)"
+            placeholder="Year: optional"
+            title="Year: optional — a single year (2017), a range (2017-2021) or any free text (stored verbatim)"
             className="w-24 text-sm rounded-lg border border-gray-200 px-2 py-1.5 bg-white flex-shrink-0 focus:border-teal-500 focus:outline-none"
           />
           <input

@@ -340,6 +340,7 @@ interface RenderContext {
   primary: string;
   subtitle: string;
   pageMarginColor: string;
+  contentBgColor: string;
   textColor: string;
   mutedColor: string;
   profileRim: boolean;
@@ -364,6 +365,7 @@ interface EffectiveColors {
   primary: string;
   accent: string;
   bg: string;
+  contentBg: string;
   surface: string;
   text: string;
   muted: string;
@@ -376,6 +378,8 @@ function resolveColors(design: Partial<CVDesign>, palette: ColorPalette): Effect
     primary: design.primary_color || palette.primary,
     accent: design.accent_color || palette.accent,
     bg: (cfg.marginColor as string) || palette.bg,
+    // Content-area background behind the text (defaults to white)
+    contentBg: (cfg.contentBgColor as string) || "#ffffff",
     surface: (cfg.surfaceColor as string) || palette.surface,
     text: (cfg.textColor as string) || palette.text,
     muted: (cfg.mutedColor as string) || palette.muted,
@@ -389,6 +393,11 @@ function setFill(ctx: RenderContext, color: string): void {
   const [r, g, b] = rgb255(color);
   ctx.doc.setFillColor(r, g, b);
 }
+
+/** Indent (pt) of an entry's continuation lines (wrapped description
+ * remainder / organization row) — keeps a 2nd visual row from reading as
+ * a new item. px2pt(10) matches the preview's CONT_INDENT_PX. */
+const CONT_INDENT_PT = px2pt(10);
 
 function setStroke(ctx: RenderContext, color: string): void {
   const [r, g, b] = rgb255(color);
@@ -412,8 +421,19 @@ function setFont(ctx: RenderContext, style: FontStyle, sizePt: number): void {
 }
 
 function drawPageBackground(ctx: RenderContext): void {
+  // 1) Fill the whole page with the margin color...
   setFill(ctx, ctx.pageMarginColor);
   ctx.doc.rect(0, 0, ctx.pageWidthPt, ctx.pageHeightPt, "F");
+  // 2) ...then the inner content box with the (distinct) content background,
+  //    so the margin ring keeps its own color around the text area.
+  setFill(ctx, ctx.contentBgColor);
+  ctx.doc.rect(
+    ctx.pageMargin,
+    ctx.pageMargin,
+    ctx.pageWidthPt - ctx.pageMargin * 2,
+    ctx.pageHeightPt - ctx.pageMargin * 2,
+    "F"
+  );
 }
 
 function renderHeading(
@@ -512,58 +532,92 @@ function renderEntry(
   );
 
   if (title) {
-    setFont(ctx, "bold", titleFontSize);
-    setText(ctx, primary);
-
+    // Year reserves right-edge width in BOTH placements (it sits on the
+    // baseline row of the title).
     const yearW = yearText ? doc.getTextWidth(yearText) + px2pt(12) : 0;
-    const titleMaxWidth = contentWidth - yearW;
-    const titleLines = doc.splitTextToSize(title, titleMaxWidth) as string[];
-    doc.text(titleLines, pageMargin, y);
-    const titleBlockHeight = titleLines.length * titleFontSize;
 
-    if (yearText) {
-      setFont(ctx, "normal", yearFontSize);
-      setText(ctx, ctx.mutedColor);
-      doc.text(yearText, pageMargin + contentWidth, y, { align: "right" });
+    if (ctx.inlineDesc && description) {
+      // Inline placement: the description starts on the SAME line as the
+      // title, separated by the configured separator (title stays bold,
+      // description is lighter italic — mirrors the preview's nested span).
+      // Advance == wrap count of the whole combo at contentWidth − yearW
+      // (× bodyFontSize × lineHeight) — measureEntry mirrors this exactly.
+      const combo = `${title} ${ctx.descSeparator} ${description}`;
+      const sepW = doc.getTextWidth(` ${ctx.descSeparator} `);
+      setFont(ctx, "bold", titleFontSize);
+      const titleW = doc.getTextWidth(title);
+      setFont(ctx, "italic", bodyFontSize);
+      const comboLines = wrapText(doc, combo, contentWidth - yearW);
+      // First line: title + separator + description tail; wrapped remainder
+      // indented by CONT_INDENT_PT so it reads as part of the same item.
+      const wrapped = comboLines.length > 1;
+
+      setFont(ctx, "bold", titleFontSize);
+      setText(ctx, primary);
+      doc.text(title, pageMargin, y);
+      setFont(ctx, "italic", bodyFontSize);
+      setText(ctx, ctx.textColor);
+      doc.text(` ${ctx.descSeparator} `, pageMargin + titleW, y);
+      doc.text(comboLines.slice(1), pageMargin + CONT_INDENT_PT, y + bodyFontSize * spacing.lineHeight);
+      if (!wrapped) {
+        const descOnFirst = doc.splitTextToSize(description, contentWidth - yearW - sepW - titleW) as string[];
+        doc.text(descOnFirst[0] ?? "", pageMargin + titleW + sepW, y);
+      } else {
+        // First line carries as much description as fits after the separator:
+        // comboLines[0] is `title sep descTail…` from the greedy wrap — redraw
+        // only the desc tail after the separator.
+        const tail = comboLines[0].slice(title.length + ` ${ctx.descSeparator} `.length);
+        if (tail) doc.text(tail, pageMargin + titleW + sepW, y);
+      }
+
+      if (yearText) {
+        setFont(ctx, "normal", yearFontSize);
+        setText(ctx, ctx.mutedColor);
+        doc.text(yearText, pageMargin + contentWidth, y, { align: "right" });
+      }
+
+      y += comboLines.length * (bodyFontSize * spacing.lineHeight);
+    } else {
+      setFont(ctx, "bold", titleFontSize);
+      setText(ctx, primary);
+      const titleMaxWidth = contentWidth - yearW;
+      const titleLines = doc.splitTextToSize(title, titleMaxWidth) as string[];
+      doc.text(titleLines, pageMargin, y);
+      const titleBlockHeight = titleLines.length * titleFontSize;
+
+      if (yearText) {
+        setFont(ctx, "normal", yearFontSize);
+        setText(ctx, ctx.mutedColor);
+        doc.text(yearText, pageMargin + contentWidth, y, { align: "right" });
+      }
+
+      y += titleBlockHeight;
     }
-
-    y += titleBlockHeight;
   }
 
   if (organization) {
     setFont(ctx, "italic", bodyFontSize);
     setText(ctx, ctx.mutedColor);
-    const orgLines = doc.splitTextToSize(organization, contentWidth) as string[];
-    doc.text(orgLines, pageMargin, y);
+    const orgLines = doc.splitTextToSize(organization, contentWidth - CONT_INDENT_PT) as string[];
+    doc.text(orgLines, pageMargin + CONT_INDENT_PT, y);
     y += orgLines.length * (bodyFontSize * 1.1);
   }
 
-  if (description) {
-    if (ctx.inlineDesc) {
-      // Inline placement: the description joins the organization's line (or
-      // starts its own line with the separator when there's no organization),
-      // wrapped across the full content width — saves a line per entry.
-      const combo = organization
-        ? `${organization} ${ctx.descSeparator} ${description}`
-        : `${ctx.descSeparator} ${description}`;
-      const comboLines = wrapText(doc, combo, contentWidth);
-      if (organization) {
-        // Roll back the org block's advance; redraw org+desc as one block.
-        const orgLines2 = doc.splitTextToSize(organization, contentWidth) as string[];
-        y -= orgLines2.length * (bodyFontSize * 1.1);
-      }
-      setFont(ctx, "italic", bodyFontSize);
-      setText(ctx, ctx.textColor);
-      doc.text(comboLines, pageMargin, y + bodyFontSize * 0.4);
-      y += comboLines.length * (bodyFontSize * spacing.lineHeight);
-    } else {
-      setFont(ctx, "italic", bodyFontSize);
-      setText(ctx, ctx.textColor);
-      const descLines = wrapText(doc, description, contentWidth);
-      const lineH = bodyFontSize * spacing.lineHeight;
-      doc.text(descLines, pageMargin, y + bodyFontSize * 0.4);
-      y += descLines.length * lineH;
-    }
+  if (description && !ctx.inlineDesc) {
+    setFont(ctx, "italic", bodyFontSize);
+    setText(ctx, ctx.textColor);
+    const descLines = wrapText(doc, description, contentWidth - CONT_INDENT_PT);
+    const lineH = bodyFontSize * spacing.lineHeight;
+    doc.text(descLines, pageMargin + CONT_INDENT_PT, y + bodyFontSize * 0.4);
+    y += descLines.length * lineH;
+  } else if (description && !title) {
+    // No-title fallback for inline placement: draw the description as a
+    // plain indented block (line 1's separator only exists with a title).
+    setFont(ctx, "italic", bodyFontSize);
+    setText(ctx, ctx.textColor);
+    const descLines = wrapText(doc, description, contentWidth - CONT_INDENT_PT);
+    doc.text(descLines, pageMargin + CONT_INDENT_PT, y + bodyFontSize * 0.4);
+    y += descLines.length * bodyFontSize * spacing.lineHeight;
   }
 
   y += px2pt(spacing.item);
@@ -590,7 +644,14 @@ function renderSection(
   // above the top margin (ink yMin 20.7pt vs margin 36pt in bbox audits).
   const isContinuation = (section as SectionWithEntries & { isContinuation?: boolean }).isContinuation === true;
   if (!isContinuation) {
-    y = renderHeading(ctx, sanitizeText(section.title), y);
+    // Active-language section title: translated title (layout_config
+    // .sectionTitleTranslations[activeLang]) wins when non-empty, otherwise
+    // the original section title.
+    const titleMap = (section.layout_config as Record<string, unknown> | null)
+      ?.sectionTitleTranslations as Record<string, string> | undefined;
+    const sectionTitle =
+      (titleMap && titleMap[ctx.activeLang]) || sanitizeText(section.title);
+    y = renderHeading(ctx, sectionTitle, y);
   }
 
   if (twoCol && section.entries.length > 1) {
@@ -822,6 +883,7 @@ function flowLayout(
     const titleFontSize = px2pt(15.2);
     const bodyFontSize = px2pt(14);
     let h = 0;
+    // MIRRORS renderEntry exactly — every branch here has a twin there.
     if (title) {
       setFont(ctx, "bold", titleFontSize);
       // Reserve space for the right-aligned year like the real renderer does
@@ -830,27 +892,38 @@ function flowLayout(
         ((entry.data as { year_text?: string } | undefined)?.year_text ?? "") ||
         (entry.year != null && entry.year !== 0 ? String(entry.year) : "");
       const yearW = yearText ? doc.getTextWidth(yearText) + px2pt(12) : 0;
-      const lines = doc.splitTextToSize(title, Math.max(40, width - yearW)) as string[];
-      h += lines.length * titleFontSize;
-    }
-    // Inline description placement: org+description share one wrapped block
-    // (MUST mirror renderEntry's combo block, else pagination drifts).
-    if (ctx.inlineDesc && description && organization) {
+
+      if (ctx.inlineDesc && description) {
+        // Inline placement: combo wraps at contentWidth − yearW; advance is
+        // the wrap count × body line-height (renderEntry draws line 1 as
+        // title + separator + tail and the indented remainder lines).
+        setFont(ctx, "bold", titleFontSize);
+        const combo = `${title} ${ctx.descSeparator} ${description}`;
+        setFont(ctx, "italic", bodyFontSize);
+        const comboLines = wrapText(doc, combo, Math.max(60, width - yearW));
+        h += comboLines.length * (bodyFontSize * spacing.lineHeight);
+      } else {
+        const lines = doc.splitTextToSize(title, Math.max(40, width - yearW)) as string[];
+        h += lines.length * titleFontSize;
+      }
+    } else if (ctx.inlineDesc && description) {
+      // No title but inline description: it renders as a plain wrapped block
+      // at the full (indented) width — measure at the same width.
       setFont(ctx, "italic", bodyFontSize);
-      const combo = `${organization} ${ctx.descSeparator} ${description}`;
-      const lines = wrapText(doc, combo, width);
+      const lines = wrapText(doc, description, Math.max(40, width - CONT_INDENT_PT));
+      h += lines.length * bodyFontSize * spacing.lineHeight;
+    }
+    if (organization && !(ctx.inlineDesc && description)) {
+      // Continuation row: measured at the INDENTED width (renderEntry draws
+      // org lines at x + CONT_INDENT_PT with wrap width − indent).
+      setFont(ctx, "italic", bodyFontSize);
+      const lines = doc.splitTextToSize(organization, Math.max(40, width - CONT_INDENT_PT)) as string[];
+      h += lines.length * (bodyFontSize * 1.1);
+    }
+    if (description && !ctx.inlineDesc) {
+      setFont(ctx, "italic", bodyFontSize);
+      const lines = wrapText(doc, description, Math.max(40, width - CONT_INDENT_PT));
       h += lines.length * bodyFontSize * spacing.lineHeight + bodyFontSize * 0.4;
-    } else {
-      if (organization) {
-        setFont(ctx, "italic", bodyFontSize);
-        const lines = doc.splitTextToSize(organization, width) as string[];
-        h += lines.length * (bodyFontSize * 1.1);
-      }
-      if (description) {
-        setFont(ctx, "italic", bodyFontSize);
-        const lines = wrapText(doc, description, width);
-        h += lines.length * bodyFontSize * spacing.lineHeight + bodyFontSize * 0.4;
-      }
     }
     h += px2pt(spacing.item);
     return h;
@@ -1217,6 +1290,7 @@ export async function exportToPdf(
     primary: colors.primary,
     subtitle: colors.subtitle,
     pageMarginColor: colors.bg,
+    contentBgColor: colors.contentBg,
     textColor: colors.text,
     mutedColor: colors.muted,
     // Description placement (custom_config): "below" default, or "inline"

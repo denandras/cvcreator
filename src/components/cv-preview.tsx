@@ -21,6 +21,10 @@ interface CVPreviewProps {
   profilePicture?: string | null;
 }
 
+/** Indent of continuation rows (organization / description) under an entry's
+ * title — makes a wrapped 2nd visual row read as part of the same entry. */
+const CONT_INDENT_PX = 10;
+
 export function CVPreview({
   sections,
   design,
@@ -53,6 +57,8 @@ export function CVPreview({
   const descSeparator = ((design.custom_config?.descriptionSeparator as string) ?? "—") || "—";
   // Per-role color overrides — custom values win over the palette
   const pageMarginColor = (design.custom_config?.marginColor as string) ?? palette.bg;
+  // Content-area background behind the text (distinct from the margin ring)
+  const contentBgColor = (design.custom_config?.contentBgColor as string) ?? "#ffffff";
   const textColor = (design.custom_config?.textColor as string) ?? palette.text;
   const mutedColor = (design.custom_config?.mutedColor as string) ?? palette.muted;
   const subtitleColor =
@@ -60,6 +66,22 @@ export function CVPreview({
     design.accent_color ??
     palette.accent;
   const surfaceColor = (design.custom_config?.surfaceColor as string) ?? palette.surface;
+
+  // Re-run pagination once web fonts finish loading. A page measured with
+  // fallback-font metrics reflows TALLER when the real font swaps in, which
+  // used to clip the last rendered row on a full page. Bumping this state
+  // re-runs the pagination effect (and re-keys the measurement container).
+  const [fontsLoadedTick, setFontsLoadedTick] = useState(0);
+  useEffect(() => {
+    if (typeof document === "undefined" || !("fonts" in document)) return;
+    let cancelled = false;
+    document.fonts.ready.then(() => {
+      if (!cancelled) setFontsLoadedTick((t) => t + 1);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Auto-pagination state
   const [autoPages, setAutoPages] = useState<SectionWithEntries[][]>([]);
@@ -212,6 +234,9 @@ export function CVPreview({
       ((entry.data as { year_text?: string } | undefined)?.year_text ?? "") ||
       (entry.year != null && entry.year !== 0 ? String(entry.year) : "")
     );
+    // Continuation rows (everything after the title line) are indented so a
+    // wrapped/second visual row can't be read as a new list item.
+    const contIndent = `${CONT_INDENT_PX}px`;
 
     return (
       <div
@@ -221,6 +246,14 @@ export function CVPreview({
         <div className="flex items-baseline justify-between gap-3">
           <span className="font-semibold" style={{ color: primary, fontSize: "0.95rem" }}>
             {title}
+            {/* Inline placement: the description starts right after the title,
+                separated by the configured separator — same visual line. */}
+            {inlineDesc && description && (
+              <span className="text-sm italic font-normal" style={{ color: textColor }}>
+                <span style={{ color: mutedColor }}>{" "}{descSeparator}{" "}</span>
+                {description}
+              </span>
+            )}
           </span>
           {yearText && (
             <span className="text-xs font-medium whitespace-nowrap" style={{ color: mutedColor }}>
@@ -229,24 +262,14 @@ export function CVPreview({
           )}
         </div>
         {organization && (
-          <div className="text-sm italic" style={{ color: mutedColor }}>
+          <div className="text-sm italic" style={{ color: mutedColor, paddingLeft: contIndent }}>
             {organization}
           </div>
         )}
-        {description && (
-          // Description placement: custom_config.descriptionPlacement controls
-          // "below" (default, own line) or "inline" (runs after the title with
-          // a separator — saves vertical space).
-          inlineDesc ? (
-            <div className="text-sm italic" style={{ color: textColor, whiteSpace: "pre-line" }}>
-              <span style={{ color: mutedColor }}>{descSeparator}</span>
-              {description}
-            </div>
-          ) : (
-            <div className="text-sm italic mt-1" style={{ color: textColor, whiteSpace: "pre-line" }}>
-              {description}
-            </div>
-          )
+        {description && !inlineDesc && (
+          <div className="text-sm italic mt-1" style={{ color: textColor, paddingLeft: contIndent, whiteSpace: "pre-line" }}>
+            {description}
+          </div>
         )}
       </div>
     );
@@ -261,6 +284,12 @@ export function CVPreview({
         right: SectionWithEntries["entries"][0][];
       }>;
     };
+    // Active-language section title: translated title wins when non-empty,
+    // otherwise the original section title (primary language).
+    const titleMap = (section.layout_config as Record<string, unknown> | null)
+      ?.sectionTitleTranslations as Record<string, string> | undefined;
+    const sectionTitle =
+      (titleMap && titleMap[activeLang]) || sanitizeText(section.title);
     return (
       <div
         key={section.id}
@@ -269,7 +298,7 @@ export function CVPreview({
           breakInside: "avoid",
         }}
       >
-        {!isContinuation && renderHeading(sanitizeText(section.title))}
+        {!isContinuation && renderHeading(sectionTitle)}
         {twoCol ? (
           (() => {
             const chunks = meta.twocolChunks;
@@ -647,7 +676,7 @@ export function CVPreview({
     flush();
 
     setAutoPages(pages.length > 0 ? pages : [enabledSectionsWithEntries]);
-  }, [useAutoPaginate, flowItems, pageMargin, spacing.section, spacing.item, lineHeight, fontStack, activeLang, enabledSectionsWithEntries]);
+  }, [useAutoPaginate, flowItems, pageMargin, spacing.section, spacing.item, lineHeight, fontStack, activeLang, enabledSectionsWithEntries, fontsLoadedTick]);
 
   // Pages come from the auto-pagination flow measurement above.
   const pages = autoPages.length > 0 ? autoPages : [enabledSectionsWithEntries];
@@ -695,6 +724,7 @@ export function CVPreview({
       {useAutoPaginate && (
         <div
           ref={measureRef}
+          key={`measure-${fontsLoadedTick}`}
           style={{
             position: "absolute",
             left: "-9999px",
@@ -760,7 +790,7 @@ export function CVPreview({
             }}
           >
             <div
-              className="bg-white shadow-lg relative flex-shrink-0"
+              className="shadow-lg relative flex-shrink-0"
               style={{
                 width: `${PAGE_WIDTH}px`,
                 minHeight: `${PAGE_HEIGHT}px`,
@@ -776,10 +806,24 @@ export function CVPreview({
                 transform: `scale(${scale})`,
               }}
             >
+              {/* Content-area background (custom_config.contentBgColor); fills
+                  the inner content box so the margin ring keeps its own color. */}
+              <div
+                aria-hidden
+                style={{
+                  position: "absolute",
+                  inset: `${pageMargin}px`,
+                  backgroundColor: contentBgColor,
+                  borderRadius: `${Math.max(borderRadius - 2, 0)}px`,
+                  zIndex: 0,
+                }}
+              />
+              <div style={{ position: "relative", zIndex: 1 }}>
               {/* Profile header — only on first page */}
               {pageIdx === 0 && renderProfileHeader()}
 
               {pageSections.map(renderSection)}
+              </div>
             </div>
           </div>
         ))}

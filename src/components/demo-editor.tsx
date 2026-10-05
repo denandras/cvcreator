@@ -346,7 +346,7 @@ export function DemoEditor() {
     const newEntry: EntryWithTranslations = {
       id: genDemoId("entry"),
       section_id: sectionId,
-      year: new Date().getFullYear(),
+      year: null,
       is_enabled: true,
       sort_order: 0,
       data: {},
@@ -480,27 +480,36 @@ export function DemoEditor() {
 
   const handleApplyTemplate = (templateId: string) => {
     const tpl = getTemplate(templateId);
-    const pal = getPalette(tpl.defaultPalette);
-    setDesignForm((prev) => ({
-      ...prev,
-      template: templateId,
-      font_family: tpl.defaultFont,
-      primary_color: pal.primary,
-      accent_color: pal.accent,
-      custom_config: { ...(prev.custom_config ?? {}), paletteId: tpl.defaultPalette },
-    }));
+    setDesignForm((prev) => {
+      // Template switch resets per-role color overrides + the derived
+      // subtitle/content-bg colors (same as the real editor's handler).
+      const { textColor, mutedColor, marginColor, surfaceColor, subtitleColor, contentBgColor, ...restCfg } =
+        (prev.custom_config ?? {}) as Record<string, unknown>;
+      return {
+        ...prev,
+        template: templateId,
+        font_family: tpl.defaultFont,
+        primary_color: null,
+        accent_color: null,
+        custom_config: { ...restCfg, paletteId: tpl.defaultPalette },
+      };
+    });
     setDesignDirty(true);
     setDesignSaved(false);
   };
 
   const handleApplyPalette = (paletteId: string) => {
-    const pal = getPalette(paletteId);
-    setDesignForm((prev) => ({
-      ...prev,
-      primary_color: pal.primary,
-      accent_color: pal.accent,
-      custom_config: { ...(prev.custom_config ?? {}), paletteId },
-    }));
+    setDesignForm((prev) => {
+      // Clear all custom color overrides — palette selection resets colors
+      const { textColor, mutedColor, marginColor, surfaceColor, subtitleColor, contentBgColor, ...restCfg } =
+        (prev.custom_config ?? {}) as Record<string, unknown>;
+      return {
+        ...prev,
+        primary_color: null,
+        accent_color: null,
+        custom_config: { ...restCfg, paletteId },
+      };
+    });
     setDesignDirty(true);
     setDesignSaved(false);
   };
@@ -519,6 +528,29 @@ export function DemoEditor() {
     if (!section) return;
     const newConfig = { ...section.layout_config, [layoutKey]: value };
     handleUpdateSection(sectionId, { layout_config: newConfig });
+  };
+
+  // Section title translation — stored in layout_config.sectionTitleTranslations
+  const handleSaveSectionTitleTranslation = (
+    sectionId: string,
+    lang: string,
+    title: string
+  ) => {
+    const section = sections.find((s) => s.id === sectionId);
+    if (!section) return;
+    const map = {
+      ...((section.layout_config as Record<string, unknown>).sectionTitleTranslations as
+        | Record<string, string>
+        | undefined),
+    };
+    if (title) map[lang] = title;
+    else delete map[lang];
+    handleUpdateSection(sectionId, {
+      layout_config: {
+        ...(section.layout_config as Record<string, unknown>),
+        sectionTitleTranslations: map,
+      },
+    });
   };
 
   const showEditor = viewMode === "edit" || (!isMobile && viewMode === "split");
@@ -738,6 +770,7 @@ export function DemoEditor() {
                       languages={languages}
                       onSaveTranslation={handleSaveTranslation}
                       onDeleteTranslation={handleDeleteTranslation}
+                      onSaveSectionTitle={handleSaveSectionTitleTranslation}
                     />
                   </>
                 ) : (
