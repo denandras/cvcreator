@@ -7,6 +7,11 @@ const fs = require("fs");
 const repo = "/home/denandras/repos/cvcreator";
 const data = JSON.parse(fs.readFileSync("/tmp/cv_live_data.json", "utf-8"));
 
+// Transpile .ts/.tsx to CJS at require() time so the alias patch below applies
+// to the transformed require() calls (plain node treats .ts as ESM and uses its
+// own resolver, which can't see the @/ paths).
+require(path.join(repo, "node_modules/sucrase/register/ts"));
+
 // Register tsconfig paths (@/ -> src/) for require()
 const Module = require("module");
 const origResolve = Module._resolveFilename;
@@ -22,13 +27,25 @@ if (typeof globalThis.window === "undefined") {
   globalThis.window = globalThis;
 }
 if (typeof globalThis.navigator === "undefined") {
-  if (typeof globalThis.navigator === "undefined") globalThis.navigator = { userAgent: "node", platform: "node" };
+  globalThis.navigator = { userAgent: "node", platform: "node" };
 }
 if (typeof globalThis.btoa === "undefined") {
   globalThis.btoa = (s) => Buffer.from(s, "binary").toString("base64");
 }
 if (typeof globalThis.atob === "undefined") {
   globalThis.atob = (s) => Buffer.from(s, "base64").toString("binary");
+}
+// Node 18+ has global fetch, but relative '/fonts/...' URLs need a base —
+// point it at the static public/ dir so the real embed path is exercised.
+if (typeof globalThis.fetch === "undefined" || true) {
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    const m = url.match(/^\/fonts\/(.+)$/);
+    if (!m) return new Response(url, { status: 404 });
+    const p = path.join(repo, "public/fonts", decodeURIComponent(m[1]));
+    const buf = fs.readFileSync(p);
+    return new Response(buf, { status: 200, headers: { "content-type": "font/ttf" } });
+  };
 }
 
 const { exportToPdf } = require(path.join(repo, "src/lib/pdf-export.ts"));
@@ -38,7 +55,6 @@ const { exportToPdf } = require(path.join(repo, "src/lib/pdf-export.ts"));
   fs.writeFileSync("/tmp/cv_harness_out.pdf", Buffer.from(bytes));
   console.log("PDF bytes:", bytes.byteLength, "-> /tmp/cv_harness_out.pdf");
 
-  // Analyze with pdfminer-free approach: use poppler's pdftotext if present
   const { execSync } = require("child_process");
   try {
     const info = execSync("pdfinfo /tmp/cv_harness_out.pdf").toString();

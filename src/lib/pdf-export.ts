@@ -569,26 +569,33 @@ function renderSection(
     const colGap = px2pt(spacing.item * 4);
     const colWidth = (contentWidth - colGap) / 2;
 
-    // Split-block metadata: flush() recorded the exact [left, right] entry
-    // pair per row (twoColRows). Prefer that; fall back to the classic
-    // halving when absent (whole section on one page, no split).
+    // Split-block metadata: flush() recorded the exact per-column lists per
+    // page chunk (twocolChunks). Prefer that; fall back to the classic
+    // sequential halves when absent (whole section on one page, no split).
+    // Columns are INDEPENDENT STACKS, not a strict grid: on a chunk the two
+    // sides end at different heights, and the section flows to the lower
+    // bottom instead of re-aligning horizontal rows.
     const meta = section as SectionWithEntries & {
-      twoColRows?: Array<{
-        left: SectionWithEntries["entries"][0];
-        right: SectionWithEntries["entries"][0] | null;
+      twocolChunks?: Array<{
+        left: SectionWithEntries["entries"][0][];
+        right: SectionWithEntries["entries"][0][];
       }>;
     };
-    const rowsMeta = meta.twoColRows;
-    if (rowsMeta && rowsMeta.length > 0) {
+    const chunksMeta = meta.twocolChunks;
+    if (chunksMeta && chunksMeta.length > 0) {
       const ctxCol: RenderContext = { ...ctx, contentWidth: colWidth };
       const ctxCol2: RenderContext = {
         ...ctx,
         contentWidth: colWidth,
         pageMargin: pageMargin + colWidth + colGap,
       };
-      for (const row of rowsMeta) {
-        const yL = row.left ? renderEntry(ctxCol, row.left, y) : y;
-        const yR = row.right ? renderEntry(ctxCol2, row.right, y) : y;
+      for (const chunk of chunksMeta) {
+        let yL = y;
+        for (const entry of chunk.left) yL = renderEntry(ctxCol, entry, yL);
+        let yR = y;
+        for (const entry of chunk.right) yR = renderEntry(ctxCol2, entry, yR);
+        // Section tail: continue from the TALLER column bottom so the
+        // section gap after the last chunk matches the classic layout.
         y = Math.max(yL, yR);
       }
     } else {
@@ -710,12 +717,14 @@ async function renderProfileHeader(
 // the next page (entries only, no repeated heading).
 
 interface FlowItem {
-  kind: "heading" | "entry";
+  kind: "heading" | "entry" | "twocol" | "twocolChunk";
   section: SectionWithEntries;
   entry?: SectionWithEntries["entries"][0];
-  /** Two-column row item: blockRange is the single row [r, r+1) */
-  block?: boolean;
-  blockRange?: { start: number; end: number };
+  /** Independent-column page chunk: entries placed side by side, stacks not row-aligned */
+  chunk?: {
+    left: SectionWithEntries["entries"][0][];
+    right: SectionWithEntries["entries"][0][];
+  };
 }
 
 /** Per-style heading advance in pt — MUST equal renderHeading's return
@@ -828,24 +837,30 @@ function flowLayout(
     });
 
     if (twoCol && section.entries.length > 1) {
-      // Two-column: one flow item per ROW (col1[r] next to col2[r]) so rows
-      // flow across pages naturally. Row height = max of the two entries in
-      // that row — the same value the renderer produces when it stacks each
-      // column independently and takes Math.max of the column bottoms.
+      // Two-column: NO strict grid. Entries are dealt onto two independent
+      // column stacks (next entry → currently shorter stack), and the whole
+      // two-column block paginates in CHUNKS: whatever fits on the current
+      // page is placed side by side; each column's leftovers continue on the
+      // next page at a different entry count. Heights are measured per chunk
+      // as the taller stack — the same value the renderer produces when each
+      // column is a free-running stack and the section ends at the lower
+      // column's bottom.
       const colGap = px2pt(spacing.item * 4);
       const colWidth = (contentWidth - colGap) / 2;
+      // Sequential halves (unchanged from the classic layout): left column
+      // takes the first ⌈n/2⌉ entries, right the rest. Only the page-BREAK
+      // behavior changes — each column paginates independently below.
       const half = Math.ceil(section.entries.length / 2);
       const col1 = section.entries.slice(0, half);
       const col2 = section.entries.slice(half);
-      const rows = Math.max(col1.length, col2.length);
-      for (let r = 0; r < rows; r++) {
-        const h1 = r < col1.length ? measureEntry(col1[r], colWidth) : 0;
-        const h2 = r < col2.length ? measureEntry(col2[r], colWidth) : 0;
-        measured.push({
-          item: { kind: "entry", section, block: true, blockRange: { start: r, end: r + 1 } },
-          height: Math.max(h1, h2),
-        });
-      }
+      // Raw heights (each includes its trailing item-gap, exactly what
+      // renderEntry advances per entry).
+      const h1 = col1.reduce((a, e) => a + measureEntry(e, colWidth), 0);
+      const h2 = col2.reduce((a, e) => a + measureEntry(e, colWidth), 0);
+      measured.push({
+        item: { kind: "twocol", section, chunk: { left: col1, right: col2 } },
+        height: Math.max(h1, h2, 0),
+      });
     } else {
       for (const entry of section.entries) {
         measured.push({
@@ -860,6 +875,11 @@ function flowLayout(
   // Pure flow: items fill the current page; a break happens only when the
   // next item doesn't fit. A section's heading starts a new page only when
   // the user set layout_config.page_break_before on that section.
+  //
+  // Two-column chunks split like everything else: the columns are independent
+  // stacks, so the split point differs per column — fill each column with its
+  // own prefix up to the free height, and let the non-aligned remainders
+  // continue on the next page (no row re-alignment).
   const pages: SectionWithEntries[][] = [];
   let pageItems: Measured[] = [];
   let currentY = pageTop + headerHeightPt;
@@ -867,8 +887,8 @@ function flowLayout(
   let contTailDue = 0;
   let contTailSection: string | null = null;
 
-  const flush = () => {
-    if (pageItems.length === 0) return;
+  const flush = (extraItems?: Measured[]) => {
+    if (pageItems.length === 0 && !(extraItems && extraItems.length > 0)) return;
     // Convert flow items back into page section groups. Groups preserve
     // original section order; a section split across pages appears on both.
     // A group that doesn't contain the section's own heading flow item is a
@@ -878,7 +898,10 @@ function flowLayout(
       string,
       { group: SectionWithEntries; hasHeading: boolean }
     >();
-    for (const { item } of pageItems) {
+    const allItems = extraItems
+      ? [...pageItems, ...extraItems]
+      : pageItems;
+    for (const { item } of allItems) {
       const s = item.section;
       let rec = seen.get(s.id);
       if (!rec) {
@@ -892,27 +915,15 @@ function flowLayout(
       }
       if (item.entry) {
         rec.group.entries.push(item.entry);
-      } else if (item.block && item.blockRange) {
-        // Two-column row item: store the exact [left, right] pair on the
-        // group — the renderer consumes twoColRows directly, so no counts
-        // or positional decoding is needed.
-        const r = item.blockRange.start;
-        const half = Math.ceil(s.entries.length / 2);
-        const col1 = s.entries.slice(0, half);
-        const col2 = s.entries.slice(half);
+      } else if ((item.kind === "twocol" || item.kind === "twocolChunk") && item.chunk) {
+        // Two-column chunk: ship the exact per-column lists on the group —
+        // the renderer stacks each column independently, non row-aligned.
         const meta = rec.group as SectionWithEntries & {
-          twoColRows?: Array<{ left: SectionWithEntries["entries"][0]; right: SectionWithEntries["entries"][0] | null }>;
+          twocolChunks?: Array<{ left: SectionWithEntries["entries"][0][]; right: SectionWithEntries["entries"][0][] }>;
         };
-        if (!meta.twoColRows) meta.twoColRows = [];
-        meta.twoColRows.push({
-          left: col1[r],
-          right: r < col2.length ? col2[r] : null,
-        });
-        rec.group.entries.push(col1[r]);
-        if (r < col2.length) rec.group.entries.push(col2[r]);
-      } else if (item.block) {
-        // Whole two-column block (single row fallback): all entries
-        rec.group.entries.push(...s.entries);
+        if (!meta.twocolChunks) meta.twocolChunks = [];
+        meta.twocolChunks.push({ left: item.chunk.left, right: item.chunk.right });
+        rec.group.entries.push(...item.chunk.left, ...item.chunk.right);
       }
     }
     // Mark continuation groups (no heading on this page) so the renderer
@@ -931,13 +942,14 @@ function flowLayout(
   for (let i = 0; i < measured.length; i++) {
     const m = measured[i];
 
-    // The renderer adds a tight continuation gap (item gap + 2px) between a
-    // split section's continuation rows and the next group on the same page
-    // (see renderSection). Mirror it in measurement: charge once, after the
-    // continuation's rows, before the first item of a different group.
+    // The renderer adds a tight continuation gap (item gap + 2px) after a
+    // split section's continuation rows before the next group on the same
+    // page (see renderSection). Mirror it in measurement: charge once, after
+    // the continuation's rows, before the first item of a different group.
     if (
       contTailDue > 0 &&
-      (m.item.kind !== "entry" || !m.item.block || m.item.section.id !== contTailSection)
+      (m.item.section.id !== contTailSection ||
+        (m.item.kind !== "entry" && m.item.kind !== "twocolChunk"))
     ) {
       currentY += contTailDue;
       contTailDue = 0;
@@ -970,14 +982,82 @@ function flowLayout(
         // shrink the stored height too, so render's own advance matches.
         if (prevPlaced) prevPlaced.height -= prevHeight;
       } else {
+        // Split two-column chunks like a single long entry: each column is
+        // an independent stack, so fill per-column prefixes up to the free
+        // height and let the (different-length) remainders continue on the
+        // fresh page — no row re-alignment.
+        const twocolW = px2pt(spacing.item * 4);
+        const colW = (contentWidth - twocolW) / 2;
+        const EPS = 0.6; // pt tolerance for float drift in greedy fill
+        let placedL: SectionWithEntries["entries"] = [];
+        let placedR: SectionWithEntries["entries"] = [];
+        let restL: SectionWithEntries["entries"] = [];
+        let restR: SectionWithEntries["entries"] = [];
+        let splittable = false;
+        if ((m.item.kind === "twocol" || m.item.kind === "twocolChunk") && m.item.chunk) {
+          const free = bottomLimit - currentY;
+          let hL = 0;
+          let hR = 0;
+          for (const e of m.item.chunk.left) {
+            const h = measureEntry(e, colW);
+            if (hL + h <= free + EPS) {
+              placedL.push(e);
+              hL += h;
+            } else {
+              restL.push(e);
+            }
+          }
+          for (const e of m.item.chunk.right) {
+            const h = measureEntry(e, colW);
+            if (hR + h <= free + EPS) {
+              placedR.push(e);
+              hR += h;
+            } else {
+              restR.push(e);
+            }
+          }
+          splittable =
+            placedL.length + placedR.length > 0 &&
+            restL.length + restR.length > 0;
+        }
+        const sumH = (list: SectionWithEntries["entries"]) =>
+          list.reduce((a, e) => a + measureEntry(e, colW), 0);
+        if (splittable) {
+          // Page N: existing items + the per-column fitted prefixes.
+          const placed: Measured[] = [
+            {
+              item: {
+                kind: "twocolChunk",
+                section: m.item.section,
+                chunk: { left: placedL, right: placedR },
+              },
+              height: Math.max(sumH(placedL), sumH(placedR), 0),
+            },
+          ];
+          flush(placed);
+          // Fresh page: the independent remainders as a continuation chunk.
+          m.item.kind = "twocolChunk";
+          m.item.chunk = { left: restL, right: restR };
+          m.height = Math.max(sumH(restL), sumH(restR), 0);
+          currentY = pageTop;
+          // Continuation lands on a fresh page: arm the continuation tail.
+          contTailDue = px2pt(spacing.item) + px2pt(2);
+          contTailSection = m.item.section.id;
+          pageItems.push(m);
+          currentY += m.height;
+          continue;
+        }
+        // Generic break: flush and retry the whole item on the fresh page.
         flush();
         currentY = pageTop;
-        // Mid-section break: the rows that land on the fresh page form a
+        // Mid-section break: whatever lands on the fresh page is a
         // continuation group — arm the continuation tail for the next group.
         const prev = measured[i - 1]?.item;
         if (
-          (m.item.kind === "entry" && m.item.block) ||
-          (prev && prev.kind === "entry" && prev.block && prev.section.id === m.item.section.id)
+          m.item.kind === "twocolChunk" ||
+          (prev &&
+            (prev.kind === "twocol" || prev.kind === "twocolChunk") &&
+            prev.section.id === m.item.section.id)
         ) {
           contTailDue = px2pt(spacing.item) + px2pt(2);
           contTailSection = m.item.section.id;

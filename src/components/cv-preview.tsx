@@ -232,9 +232,9 @@ export function CVPreview({
     const twoCol = isTwoColumn(section);
     const isContinuation = (section as SectionWithEntries & { isContinuation?: boolean }).isContinuation === true;
     const meta = section as SectionWithEntries & {
-      twoColRows?: Array<{
-        left: SectionWithEntries["entries"][0];
-        right: SectionWithEntries["entries"][0] | null;
+      twocolChunks?: Array<{
+        left: SectionWithEntries["entries"][0][];
+        right: SectionWithEntries["entries"][0][];
       }>;
     };
     return (
@@ -248,16 +248,18 @@ export function CVPreview({
         {!isContinuation && renderHeading(sanitizeText(section.title))}
         {twoCol ? (
           (() => {
-            const rows = meta.twoColRows;
-            if (rows && rows.length > 0) {
-              // Split-section rows: exact [left, right] pairs recorded by the
-              // pagination flush — renders exactly what the PDF renders.
+            const chunks = meta.twocolChunks;
+            if (chunks && chunks.length > 0) {
+              // Split-section chunks: exact per-column lists recorded by the
+              // pagination flush — each column is an INDEPENDENT STACK (not
+              // a strict row-aligned grid; sides end at different heights),
+              // matching what the PDF renders on the same page.
               return (
                 <div>
-                  {rows.map((row, i) => (
-                    <div key={row.left?.id ?? i} style={{ display: "flex", gap: `${spacing.item * 4}px` }}>
-                      <div style={{ flex: 1 }}>{row.left ? renderEntry(row.left) : null}</div>
-                      <div style={{ flex: 1 }}>{row.right ? renderEntry(row.right) : null}</div>
+                  {chunks.map((chunk, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: `${spacing.item * 4}px` }}>
+                      <div style={{ flex: 1 }}>{chunk.left.map(renderEntry)}</div>
+                      <div style={{ flex: 1 }}>{chunk.right.map(renderEntry)}</div>
                     </div>
                   ))}
                 </div>
@@ -267,7 +269,7 @@ export function CVPreview({
             const col1 = section.entries.slice(0, mid);
             const col2 = section.entries.slice(mid);
             return (
-              <div style={{ display: "flex", gap: `${spacing.item * 4}px` }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: `${spacing.item * 4}px` }}>
                 <div style={{ flex: 1 }}>{col1.map(renderEntry)}</div>
                 <div style={{ flex: 1 }}>{col2.map(renderEntry)}</div>
               </div>
@@ -374,16 +376,19 @@ export function CVPreview({
   const useAutoPaginate = true;
 
   interface FlowItem {
-    kind: "heading" | "entry";
+    kind: "heading" | "entry" | "twocol" | "twocolChunk";
     section: SectionWithEntries;
     entry?: SectionWithEntries["entries"][0];
-    /** Two-column row item: blockRange is the single row [r, r+1) */
-    block?: boolean;
-    blockRange?: { start: number; end: number };
+    /** Independent-column page chunk: entries placed side by side, stacks not row-aligned */
+    chunk?: {
+      left: SectionWithEntries["entries"][0][];
+      right: SectionWithEntries["entries"][0][];
+    };
   }
 
   // Build the flow item list (same shape as the PDF exporter's flowLayout).
-  // Two-column sections emit one flow item per ROW so rows flow across pages.
+  // Two-column sections emit ONE chunk flow item — columns are independent
+  // stacks that paginate with their own split points (no strict row grid).
   const isTwoColumnRef = useRef(isTwoColumn);
   isTwoColumnRef.current = isTwoColumn;
   const flowItems: FlowItem[] = useMemo(() => {
@@ -392,15 +397,15 @@ export function CVPreview({
       items.push({ kind: "heading", section });
       const twoCol = isTwoColumnRef.current(section);
       if (twoCol && section.entries.length > 1) {
-        const rows = Math.ceil(section.entries.length / 2);
-        for (let r = 0; r < rows; r++) {
-          items.push({
-            kind: "entry",
-            section,
-            block: true,
-            blockRange: { start: r, end: r + 1 },
-          });
-        }
+        const mid = Math.ceil(section.entries.length / 2);
+        items.push({
+          kind: "twocol",
+          section,
+          chunk: {
+            left: section.entries.slice(0, mid),
+            right: section.entries.slice(mid),
+          },
+        });
       } else {
         for (const entry of section.entries) {
           items.push({ kind: "entry", section, entry });
@@ -443,19 +448,32 @@ export function CVPreview({
       idx = 1;
     }
 
+    // Per-entry measurement lookup for twocol chunk splits: collect every
+    // data-flow="entry" child (tagged data-entry-id) from chunk measure
+    // wrappers in flow order. Heights mirror renderEntry's box + item gap.
+    const entryEls = new Map<string, HTMLElement>();
+    for (const el of els) {
+      if (el.dataset.flow !== "block") continue;
+      for (const child of Array.from(el.querySelectorAll('[data-flow="entry"][data-entry-id]')) as HTMLElement[]) {
+        const id = child.dataset.entryId;
+        if (id && !entryEls.has(id)) entryEls.set(id, child);
+      }
+    }
+
     // Distribute flow items across pages (rules R1-R3)
     const pages: SectionWithEntries[][] = [];
     let pageItems: { item: FlowItem; height: number }[] = [];
     let currentHeight = profileHeaderHeight;
 
-    const flush = () => {
-      if (pageItems.length === 0) return;
+    const flush = (extraItems?: { item: FlowItem; height: number }[]) => {
+      if (pageItems.length === 0 && !(extraItems && extraItems.length > 0)) return;
       const pageSections: SectionWithEntries[] = [];
       const seen = new Map<
         string,
         { group: SectionWithEntries; hasHeading: boolean }
       >();
-      for (const { item: it } of pageItems) {
+      const allItems = extraItems ? [...pageItems, ...extraItems] : pageItems;
+      for (const { item: it } of allItems) {
         const s = it.section;
         let rec = seen.get(s.id);
         if (!rec) {
@@ -469,30 +487,18 @@ export function CVPreview({
         }
         if (it.entry) {
           rec.group.entries.push(it.entry);
-        } else if (it.block && it.blockRange) {
-          // Two-column row item: store the exact [left, right] pair on the
-          // group — the renderer consumes twoColRows directly, so counts
-          // or positional decoding can't scramble the columns.
-          const r = it.blockRange.start;
-          const half = Math.ceil(s.entries.length / 2);
-          const col1 = s.entries.slice(0, half);
-          const col2 = s.entries.slice(half);
+        } else if ((it.kind === "twocol" || it.kind === "twocolChunk") && it.chunk) {
+          // Two-column chunk: ship the exact per-column lists on the group —
+          // the renderer stacks each column independently, non row-aligned.
           const g = rec.group as SectionWithEntries & {
-            twoColRows?: Array<{
-              left: SectionWithEntries["entries"][0];
-              right: SectionWithEntries["entries"][0] | null;
+            twocolChunks?: Array<{
+              left: SectionWithEntries["entries"][0][];
+              right: SectionWithEntries["entries"][0][];
             }>;
           };
-          if (!g.twoColRows) g.twoColRows = [];
-          g.twoColRows.push({
-            left: col1[r],
-            right: r < col2.length ? col2[r] : null,
-          });
-          if (r < col1.length) rec.group.entries.push(col1[r]);
-          if (r < col2.length) rec.group.entries.push(col2[r]);
-        } else if (it.block) {
-          // Whole two-column block fallback: all entries
-          rec.group.entries.push(...s.entries);
+          if (!g.twocolChunks) g.twocolChunks = [];
+          g.twocolChunks.push({ left: it.chunk.left, right: it.chunk.right });
+          rec.group.entries.push(...it.chunk.left, ...it.chunk.right);
         }
       }
       // Mark continuation groups (no heading on this page)
@@ -511,7 +517,11 @@ export function CVPreview({
       const item = flowItems[i];
       const el = els[idx];
       idx += 1;
-      const height = (el ? el.offsetHeight : 0) + (item.kind === "heading" ? spacing.section : spacing.item);
+      // Heading items get spacing.section; every other flow item (entries,
+      // twocol chunks) gets the terminal spacing.item gap, mirroring the
+      // exporter's measured heights.
+      const rawHeight = el ? el.offsetHeight : 0;
+      const height = rawHeight + (item.kind === "heading" ? spacing.section : spacing.item);
 
       // User-controlled break: section explicitly set to start on a fresh page.
       if (
@@ -529,11 +539,80 @@ export function CVPreview({
       // before retrying the fit (keeps knife-edge rows on the same page).
       if (currentHeight + height > availableHeight && pageItems.length > 0) {
         const prevPadding = item.kind === "heading" ? 0 : spacing.item;
+        let handled = false;
         if (currentHeight - prevPadding + height <= availableHeight) {
           currentHeight -= prevPadding;
           const prevPlaced = pageItems[pageItems.length - 1];
           if (prevPlaced) prevPlaced.height -= prevPadding;
-        } else {
+          handled = true;
+        } else if (
+          (item.kind === "twocol" || item.kind === "twocolChunk") &&
+          item.chunk
+        ) {
+          // Columns are independent stacks: fill per-column prefixes up to
+          // the free height and let the (different-length) remainders start
+          // the next page — same rule the PDF exporter applies. Free space
+          // uses the FULL currentHeight (the previous entry's trailing gap
+          // is real render space the chunk starts below — parity with the
+          // exporter's `free = bottomLimit - currentY`).
+          const free = availableHeight - currentHeight;
+          const measureChild = (e: SectionWithEntries["entries"][0]) => {
+            const el2 = entryEls.get(e.id);
+            return el2 ? el2.offsetHeight + spacing.item : 0;
+          };
+          let hL = 0;
+          let hR = 0;
+          const placedL: SectionWithEntries["entries"] = [];
+          const placedR: SectionWithEntries["entries"] = [];
+          const restL: SectionWithEntries["entries"] = [];
+          const restR: SectionWithEntries["entries"] = [];
+          for (const e of item.chunk.left) {
+            const h = measureChild(e);
+            if (hL + h <= free) {
+              placedL.push(e);
+              hL += h;
+            } else {
+              restL.push(e);
+            }
+          }
+          for (const e of item.chunk.right) {
+            const h = measureChild(e);
+            if (hR + h <= free) {
+              placedR.push(e);
+              hR += h;
+            } else {
+              restR.push(e);
+            }
+          }
+          if (placedL.length + placedR.length > 0 && restL.length + restR.length > 0) {
+            // Page N: existing items + fitted prefixes.
+            flush([
+              {
+                item: {
+                  kind: "twocolChunk",
+                  section: item.section,
+                  chunk: { left: placedL, right: placedR },
+                },
+                height: Math.max(hL, hR, 0),
+              },
+            ]);
+            // Next page: the independent remainders as a continuation chunk.
+            // Per-entry heights already measured — no re-measure pass needed.
+            // Continuation chunks render entries WITHOUT a trailing gap on
+            // the last item only when they end the page; the exporter's
+            // remainder height keeps every entry's trailing gap (matches
+            // measureEntry), so mirror that here.
+            item.kind = "twocolChunk";
+            item.chunk = { left: restL, right: restR };
+            const restSum = (list: SectionWithEntries["entries"]) =>
+              list.reduce((a, e) => a + measureChild(e), 0);
+            const restH = Math.max(restSum(restL), restSum(restR), 0);
+            currentHeight = restH + spacing.item;
+            pageItems.push({ item, height: restH + spacing.item });
+            handled = true;
+          }
+        }
+        if (!handled) {
           flush();
           currentHeight = 0;
         }
@@ -614,24 +693,26 @@ export function CVPreview({
                 <div key={"m-h-" + it.section.id} data-flow="heading">
                   {renderHeading(sanitizeText(it.section.title))}
                 </div>
-              ) : it.block ? (
-                <div key={"m-b-" + it.section.id + "-" + it.blockRange?.start} data-flow="block">
-                  <div style={{ display: "flex", gap: `${spacing.item * 4}px` }}>
+              ) : it.chunk ? (
+                // Twocol chunk: one measure wrapper per entry (data-flow=entry,
+                // tagged data-entry-id) so the pagination effect can measure
+                // per-entry heights for the independent-column split — the
+                // wrapper layout mirrors the real two-column flex exactly.
+                <div key={"m-c-" + it.section.id + "-" + i} data-flow="block">
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: `${spacing.item * 4}px` }}>
                     <div style={{ flex: 1 }}>
-                      {(() => {
-                        const half = Math.ceil(it.section.entries.length / 2);
-                        const r = it.blockRange?.start ?? 0;
-                        const e1 = it.section.entries.slice(0, half)[r];
-                        return e1 ? renderEntry(e1) : null;
-                      })()}
+                      {it.chunk.left.map((e) => (
+                        <div key={"mc-" + e.id} data-flow="entry" data-entry-id={e.id}>
+                          {renderEntry(e)}
+                        </div>
+                      ))}
                     </div>
                     <div style={{ flex: 1 }}>
-                      {(() => {
-                        const half = Math.ceil(it.section.entries.length / 2);
-                        const r = it.blockRange?.start ?? 0;
-                        const e2 = it.section.entries.slice(half)[r];
-                        return e2 ? renderEntry(e2) : null;
-                      })()}
+                      {it.chunk.right.map((e) => (
+                        <div key={"mc-" + e.id} data-flow="entry" data-entry-id={e.id}>
+                          {renderEntry(e)}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
