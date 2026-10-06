@@ -343,7 +343,10 @@ export function CVPreview({
     const isRight = profileImagePosition === "right";
     return (
       <>
-        <div style={{ marginBottom: `${spacing.section}px` }} className="flex items-center gap-4">
+        <div
+          style={{ marginBottom: `${spacing.section}px` }}
+          className={`flex gap-4 ${profilePicture ? "items-start" : "items-center"}`}
+        >
           {profilePicture && !isRight && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -360,12 +363,22 @@ export function CVPreview({
               }}
             />
           )}
-          <div style={{ textAlign: profilePicture ? "left" : "center", flex: 1 }}>
+          <div
+            style={{
+              textAlign: profilePicture ? "left" : "center",
+              flex: 1,
+              // With a photo the text block starts exactly at the photo's
+              // top line — the name's own line-height gap is neutralized so
+              // nothing adds space or an extra line before the name.
+              ...(profilePicture ? { marginTop: "-4px" } : null),
+            }}
+          >
             {safeName && (
               <h1
                 className="font-bold"
                 style={{
                   fontSize: "1.75rem",
+                  lineHeight: 1.2,
                   color: primary,
                   marginBottom: "4px",
                   letterSpacing: "-0.02em",
@@ -413,14 +426,19 @@ export function CVPreview({
             />
           )}
         </div>
-        {profilePicture && (safeName || safeTitle) && (
-          <div
-            style={{
-              marginBottom: `${spacing.section}px`,
-              borderBottom: `1px solid ${surfaceColor}`,
-            }}
-          />
-        )}
+        {profilePicture && (safeName || safeTitle) ? (
+          // Divider: only when there's no name (a 1.75rem name already
+          // covers the divider's height slot — no extra line/space below
+          // a photo'd name+title header).
+          !safeName ? (
+            <div
+              style={{
+                marginBottom: `${spacing.section}px`,
+                borderBottom: `1px solid ${surfaceColor}`,
+              }}
+            />
+          ) : null
+        ) : null}
       </>
     );
   };
@@ -741,6 +759,11 @@ export function CVPreview({
               fontSize: "14px",
             }}
           >
+            {/* The measure header mirror: renderProfileHeader already carries
+                its own spacing.section marginBottom — wrapping it in another
+                container double-charged the trailing gap (measurement header >
+                render header → every flow Y drifts, rows crammed/shifted on
+                pages 2+). The wrapper must add ZERO extra space. */}
             <div data-flow="profile">{renderProfileHeader()}</div>
             {flowItems.map((it, i) =>
               it.kind === "heading" ? (

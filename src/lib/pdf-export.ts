@@ -558,7 +558,11 @@ function renderEntry(
       setFont(ctx, "italic", bodyFontSize);
       setText(ctx, ctx.textColor);
       doc.text(` ${ctx.descSeparator} `, pageMargin + titleW, y);
-      doc.text(comboLines.slice(1), pageMargin + CONT_INDENT_PT, y + bodyFontSize * spacing.lineHeight);
+      // lineHeightFactor 1: jsPDF's default 1.15 leading inside a text
+      // ARRAY would add ~2.3pt phantom per extra line — the advance below
+      // is bodyFontSize × lineHeight exactly, so the array must step by
+      // bodyFontSize × 1 (its remainder rows are 1 baseline apart).
+      doc.text(comboLines.slice(1), pageMargin + CONT_INDENT_PT, y + bodyFontSize * spacing.lineHeight, { lineHeightFactor: 1 });
       if (!wrapped) {
         const descOnFirst = doc.splitTextToSize(description, contentWidth - yearW - sepW - titleW) as string[];
         doc.text(descOnFirst[0] ?? "", pageMargin + titleW + sepW, y);
@@ -582,7 +586,9 @@ function renderEntry(
       setText(ctx, primary);
       const titleMaxWidth = contentWidth - yearW;
       const titleLines = doc.splitTextToSize(title, titleMaxWidth) as string[];
-      doc.text(titleLines, pageMargin, y);
+      // lineHeightFactor 1 — advance below is titleLines.length × fontSize
+      // (jsPDF's default 1.15 leading would cram/spread array lines +15%).
+      doc.text(titleLines, pageMargin, y, { lineHeightFactor: 1 });
       const titleBlockHeight = titleLines.length * titleFontSize;
 
       if (yearText) {
@@ -599,7 +605,8 @@ function renderEntry(
     setFont(ctx, "italic", bodyFontSize);
     setText(ctx, ctx.mutedColor);
     const orgLines = doc.splitTextToSize(organization, contentWidth - CONT_INDENT_PT) as string[];
-    doc.text(orgLines, pageMargin + CONT_INDENT_PT, y);
+    // lineHeightFactor 1 — advance matches measureEntry's lines × bodyFontSize × 1.1.
+    doc.text(orgLines, pageMargin + CONT_INDENT_PT, y, { lineHeightFactor: 1 });
     y += orgLines.length * (bodyFontSize * 1.1);
   }
 
@@ -608,7 +615,10 @@ function renderEntry(
     setText(ctx, ctx.textColor);
     const descLines = wrapText(doc, description, contentWidth - CONT_INDENT_PT);
     const lineH = bodyFontSize * spacing.lineHeight;
-    doc.text(descLines, pageMargin + CONT_INDENT_PT, y + bodyFontSize * 0.4);
+    // No +0.4 first-line fudge: every below-desc line sits exactly on the
+    // flow grid (baseline at y + k × lineH), identical to measurement —
+    // the 0.4 pad skewed real rows and broke parity with the preview.
+    doc.text(descLines, pageMargin + CONT_INDENT_PT, y, { lineHeightFactor: 1 });
     y += descLines.length * lineH;
   } else if (description && !title) {
     // No-title fallback for inline placement: draw the description as a
@@ -616,7 +626,7 @@ function renderEntry(
     setFont(ctx, "italic", bodyFontSize);
     setText(ctx, ctx.textColor);
     const descLines = wrapText(doc, description, contentWidth - CONT_INDENT_PT);
-    doc.text(descLines, pageMargin + CONT_INDENT_PT, y + bodyFontSize * 0.4);
+    doc.text(descLines, pageMargin + CONT_INDENT_PT, y, { lineHeightFactor: 1 });
     y += descLines.length * bodyFontSize * spacing.lineHeight;
   }
 
@@ -759,18 +769,28 @@ async function renderProfileHeader(
     if (name) {
       setFont(ctx, "bold", px2pt(28)); // 1.75rem
       setText(ctx, primary);
-      doc.text(name, textX, y + px2pt(12));
+      // Top-aligned with the photo (mirrors the preview's items-start):
+      // name baseline sits one ascent (21pt × ~0.79) below the photo top —
+      // no vertical-centering offset, no extra line.
+      doc.text(name, textX, y + 16.5);
     }
 
     if (title) {
       setFont(ctx, "normal", px2pt(14));
       setText(ctx, ctx.subtitle);
-      const titleY = name ? y + px2pt(28) : y + px2pt(14);
+      // Directly under the name with the 4px margin from the preview
+      // (name ascent 16.5 + 3pt margin + title ascent ≈ 27.5); when there
+      // is no name, the title takes the top slot at its own ascent (~10.5).
+      const titleY = name ? y + 27.5 : y + 10.5;
       doc.text(title.toUpperCase(), textX, titleY);
     }
 
+    // Photo header advance: photo + ONE section gap — no divider line, no
+    // second gap (mirrors the preview's photo row + marginBottom).
     y += photoSize + px2pt(spacing.section);
-  } else {
+    return y;
+  }
+  {
     if (name) {
       setFont(ctx, "bold", px2pt(28));
       setText(ctx, primary);
@@ -785,7 +805,7 @@ async function renderProfileHeader(
     y += px2pt(40) + px2pt(spacing.section);
   }
 
-  // Divider line below header
+  // Divider line below header (no-photo layout only)
   setStroke(ctx, ctx.palette.surface);
   doc.setLineWidth(0.5);
   doc.line(pageMargin, y, pageMargin + contentWidth, y);
@@ -834,20 +854,20 @@ function headingAdvancePt(headingStyle: string): number {
 }
 
 /** Exact height the profile header will consume on page 1 — MUST mirror
- * renderProfileHeader. The photo branch is 96px + 2×section gap + 16px rim/
- * padding; the NO-photo branch is name/title block + divider ≈ 40px + 15pt
- * + 15pt. Charging the photo height when no photo exists pushed every flow Y
- * ~69pt below reality → premature first break (the "random extra page"). */
+ * renderProfileHeader. PHOTO branch: photo (96px) + ONE section gap
+ * (no divider, no second gap, no phantom rim/gap padding — the old
+ * `+16px` charged the header's horizontal gap-4 vertically and pushed
+ * every flow Y 12pt too low when a photo was set). NO-photo branch:
+ * name/title block (40px) + section gap + divider line (0.5pt) + section
+ * gap — the render's full advance, incl. the hairline. */
 function profileHeaderHeightPt(data: PdfCVData, spacingSection: number): number {
   const hasNameOrTitle = Boolean(sanitizeText(data.profileName) || sanitizeText(data.profileTitle));
   const hasPhoto = Boolean(data.profilePicture);
   if (!hasNameOrTitle && !hasPhoto) return 0;
   if (hasPhoto) {
-    return px2pt(96) + px2pt(spacingSection) * 2 + px2pt(16);
+    return px2pt(96) + px2pt(spacingSection);
   }
-  // No photo: name (12px→28px advance) or title (14px) + 40px block + 15pt divider gap ×2
-  const block = hasNameOrTitle ? px2pt(40) : 0;
-  return px2pt(40) + px2pt(spacingSection) * 2;
+  return px2pt(40) + px2pt(spacingSection) * 2 + 0.5;
 }
 
 function flowLayout(
@@ -923,7 +943,10 @@ function flowLayout(
     if (description && !ctx.inlineDesc) {
       setFont(ctx, "italic", bodyFontSize);
       const lines = wrapText(doc, description, Math.max(40, width - CONT_INDENT_PT));
-      h += lines.length * bodyFontSize * spacing.lineHeight + bodyFontSize * 0.4;
+      // Advance exactly mirrors renderEntry: lines × lineHeight, no extra
+      // first-line pad (the old +0.4·fs was render-only phantom space that
+      // broke the measurement↔render grid and drifted pagination).
+      h += lines.length * bodyFontSize * spacing.lineHeight;
     }
     h += px2pt(spacing.item);
     return h;
