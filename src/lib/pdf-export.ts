@@ -271,6 +271,53 @@ function px2pt(px: number): number {
   return px * 0.75;
 }
 
+// ─── DOM strut box model (probe-verified against the live preview) ───────────
+// The preview's line geometry is strut-based: every text row occupies a strut
+// box and the baseline sits at strut/2 + fs×((asc−desc)/2) from the box top.
+// See the cvcreator skill reference session-2026-10-07-dom-strut-parity.md.
+
+/** Entry title font size (0.95rem). Title row strut = 15.2px × line-height
+ *  preset (the unitless preset inherits into the title span). */
+const TITLE_FS_PX = 15.2;
+/** Org/description rows (Tailwind text-sm): FIXED 20px strut
+ *  (line-height: 1.25rem) — preset-INDEPENDENT. */
+const BODY_STRUT_PX = 20;
+/** Profile header title div (0.875rem at preflight 1.5): 21px strut. */
+const HEADER_TITLE_STRUT_PX = 21;
+/** Below-mode description block mt-1 (4px). */
+const DESC_MARGIN_PX = 4;
+
+/** Baseline anchor (pt) inside a strut box measured from the box top —
+ *  anchor = strut/2 + fs×((asc−desc)/2). `ratio` comes from the embedded
+ *  webfont's canvas fontBoundingBox metrics at export time (browser) and
+ *  falls back to 0.363 (Inter-like metrics) under Node/harnesses. */
+function anchorPt(strutPx: number, fsPx: number, ratio: number): number {
+  return px2pt(strutPx / 2 + fsPx * ratio);
+}
+
+/** ((asc − desc) / 2) as a fraction of em, measured from canvas
+ *  fontBoundingBox metrics for the given CSS font stack (browser only). */
+function computeBaselineRatio(fontStackCss: string): number {
+  const FALLBACK = 0.363;
+  try {
+    if (typeof document === "undefined") return FALLBACK;
+    const c = document.createElement("canvas");
+    const g = c.getContext("2d");
+    if (!g) return FALLBACK;
+    g.font = `400 100px ${fontStackCss}`;
+    const m = g.measureText("Hx") as TextMetrics & {
+      fontBoundingBoxAscent?: number;
+      fontBoundingBoxDescent?: number;
+    };
+    const asc = m.fontBoundingBoxAscent;
+    const desc = m.fontBoundingBoxDescent;
+    if (!asc || !desc || asc + desc <= 0) return FALLBACK;
+    return (asc - desc) / 200;
+  } catch {
+    return FALLBACK;
+  }
+}
+
 /** Wrap text within a given width using jsPDF's text wrapping */
 function wrapText(doc: jsPDF, text: string, maxWidth: number): string[] {
   if (!text) return [];
@@ -353,6 +400,9 @@ interface RenderContext {
   fontFam: string; // "helvetica" or "times" (built-in fallback)
   fontStyles?: Record<FontStyle, string>; // embedded per-style families
   embedded: boolean;
+  /** (asc−desc)/2 em fraction of the active webfont (canvas-measured in the
+   *  browser; 0.363 fallback) — drives the strut baseline anchors below. */
+  baselineRatio: number;
   /** Description placement: "below" (own line) or "inline" (after title/org) */
   inlineDesc: boolean;
   /** Separator used in inline placement ("—", ":", "·", "•", "|") */
@@ -436,6 +486,16 @@ function drawPageBackground(ctx: RenderContext): void {
   );
 }
 
+/**
+ * Render a section heading. y = BLOCK TOP of the heading (DOM box semantics —
+ * the flow cursor always points at the next item's box top, never a baseline).
+ *
+ * Line geometry mirrors the preview's h2: Tailwind preflight sets
+ * `html { line-height: 1.5 }` and h2 { font-size: inherit } — no style sets a
+ * line-height on h2, so the strut = fontSize × 1.5 and is PRESET-independent
+ * (the entry line-height preset never reaches section headings).
+ * Strut box model: baseline = blockTop + strut/2 + fs×((asc−desc)/2).
+ */
 function renderHeading(
   ctx: RenderContext,
   title: string,
@@ -443,6 +503,7 @@ function renderHeading(
 ): number {
   const { doc, template, accent, primary, borderRadius, pageMargin, contentWidth } = ctx;
   const text = title.toUpperCase();
+  const ratio = ctx.baselineRatio;
 
   // Bigger section titles (was 14pt): shrink only if the measured title
   // would exceed the content width.
@@ -458,57 +519,83 @@ function renderHeading(
     return basePt;
   };
   const fontSize = fitPt(px2pt(18), 0);
+  // Heading strut in px (fs × 1.5 from preflight) — scales with auto-shrink.
+  const fsPx = fontSize / 0.75;
+  const strutPx = fsPx * 1.5;
+  const baselineOff = anchorPt(strutPx, fsPx, ratio);
 
   switch (template.headingStyle) {
     case "underline": {
       setFont(ctx, "bold", fontSize);
       setText(ctx, primary);
-      doc.text(text, pageMargin, y);
+      doc.text(text, pageMargin, y + baselineOff);
       setStroke(ctx, accent);
       doc.setLineWidth(1.5);
-      doc.line(pageMargin, y + 3, pageMargin + contentWidth, y + 3);
+      // borderBottom sits below paddingBottom 4px → strut + 4px.
+      doc.line(pageMargin, y + px2pt(strutPx + 4), pageMargin + contentWidth, y + px2pt(strutPx + 4));
       doc.setLineWidth(0.2);
-      return y + px2pt(12);
+      // Box: strut + paddingBottom 4 + border 2, plus mb-3 (12px).
+      return y + px2pt(strutPx + 4 + 2 + 12);
     }
     case "border": {
       setFont(ctx, "bold", fontSize);
       setText(ctx, primary);
       setStroke(ctx, accent);
       doc.setLineWidth(2.25);
-      doc.line(pageMargin, y - fontSize + 1, pageMargin, y + 3);
+      // borderLeft spans the h2's full content box (strut height).
+      doc.line(pageMargin, y, pageMargin, y + px2pt(strutPx));
       doc.setLineWidth(0.2);
-      doc.text(text, pageMargin + px2pt(13), y);
-      return y + px2pt(12);
+      doc.text(text, pageMargin + px2pt(13), y + baselineOff); // border 3px + padding 10px
+      return y + px2pt(strutPx + 12); // + mb-3
     }
     case "filled": {
       setFont(ctx, "bold", fontSize);
       const textWidth = doc.getTextWidth(text);
-      const padX = px2pt(12);
-      const padY = px2pt(6);
+      const padX = px2pt(12); // px-3
+      const padYpx = 6;       // py-1.5
       const boxW = textWidth + padX * 2;
-      const boxH = fontSize + padY * 2;
+      const boxH = px2pt(strutPx + padYpx * 2);
       setFill(ctx, accent);
-      roundedRect(doc, pageMargin, y - fontSize, boxW, boxH, borderRadius, "F");
+      roundedRect(doc, pageMargin, y, boxW, boxH, borderRadius, "F");
       const [wr, wg, wb] = readableOn(accent);
       doc.setTextColor(wr, wg, wb);
-      doc.text(text, pageMargin + padX, y + padY * 0.5);
-      return y - fontSize + boxH + px2pt(12);
+      doc.text(text, pageMargin + padX, y + px2pt(padYpx) + baselineOff);
+      return y + boxH + px2pt(12); // + mb-3
     }
     case "minimal": {
-      setFont(ctx, "bold", fitPt(px2pt(16), 0));
+      // fs 16px → strut 24px (16 × 1.5); mb-2 = 8px.
+      const minPt = fitPt(px2pt(16), 0);
+      setFont(ctx, "bold", minPt);
       setText(ctx, primary);
-      doc.text(text, pageMargin, y, { charSpace: 1.2 });
-      return y + px2pt(8);
+      doc.text(text, pageMargin, y + anchorPt(24, 16, ratio), { charSpace: 1.2 });
+      return y + px2pt(24 + 8);
     }
     default: {
+      // Bare preflight h2: inherits 14px, strut 21px, no margin (dead code
+      // for all shipped templates — every template sets a headingStyle).
       setFont(ctx, "bold", fontSize);
       setText(ctx, primary);
-      doc.text(text, pageMargin, y);
-      return y + px2pt(12);
+      doc.text(text, pageMargin, y + anchorPt(21, 14, ratio));
+      return y + px2pt(21);
     }
   }
 }
 
+/**
+ * Render one entry. y = BLOCK TOP of the entry (DOM box semantics — the flow
+ * cursor always points at the next item's top edge, never a baseline).
+ *
+ * Strut box model (probe-verified, see skill ref dom-strut-parity):
+ * - Title rows strut = 15.2px × line-height preset (unitless preset inherits
+ *   into the title span).
+ * - Org/desc rows (Tailwind text-sm) strut = 20px FIXED — preset-independent.
+ * - Inline mode (desc nested in the title span): strut = max(20, 15.2×P).
+ * - Baseline inside a strut = strut/2 + fs×((asc−desc)/2) from the box top.
+ * - Below-mode desc block adds mt-1 (4px) before its strut box.
+ * jsPDF array rows step EXACTLY fontSize × lineHeightFactor, so each array
+ * passes factor = strutPt/arrayFontSizePt and the first baseline is placed at
+ * boxTop + anchor.
+ */
 function renderEntry(
   ctx: RenderContext,
   entry: SectionWithEntries["entries"][0],
@@ -521,9 +608,18 @@ function renderEntry(
   const description = sanitizeText(translation?.description ?? "");
   const year = entry.year;
 
-  const titleFontSize = px2pt(15.2); // 0.95rem
-  const bodyFontSize = px2pt(14);    // text-sm
-  const yearFontSize = px2pt(12);    // text-xs
+  const titleFsPt = px2pt(TITLE_FS_PX); // 11.4pt (0.95rem)
+  const bodyFsPt = px2pt(14);          // 10.5pt (text-sm)
+  const yearFsPt = px2pt(12);          // 9pt (text-xs)
+
+  // Strut heights (pt) per row type.
+  const P = spacing.lineHeight;
+  const strutTpx = TITLE_FS_PX * P;                   // title strut in px
+  const strutTpt = px2pt(strutTpx);                   // title rows
+  const strutBpt = px2pt(BODY_STRUT_PX);              // org/desc rows (fixed 20px)
+  const bodyFactor = strutBpt / bodyFsPt;             // jsPDF array leading = 20px/14px
+  const anchorT = anchorPt(strutTpx, TITLE_FS_PX, ctx.baselineRatio);
+  const anchorB = anchorPt(BODY_STRUT_PX, 14, ctx.baselineRatio);
 
   // Free-text year (e.g. "2017-2021") wins over the int year column
   const yearText = sanitizeText(
@@ -531,107 +627,110 @@ function renderEntry(
     (year != null && year !== 0 ? String(year) : "")
   );
 
+  // Flow cursor: top edge of the NEXT row box (chain of strut sums).
+  let top = y;
+
   if (title) {
     // Year reserves right-edge width in BOTH placements (it sits on the
     // baseline row of the title).
     const yearW = yearText ? doc.getTextWidth(yearText) + px2pt(12) : 0;
 
     if (ctx.inlineDesc && description) {
-      // Inline placement: the description starts on the SAME line as the
-      // title, separated by the configured separator (title stays bold,
-      // description is lighter italic — mirrors the preview's nested span).
-      // Advance == wrap count of the whole combo at contentWidth − yearW
-      // (× bodyFontSize × lineHeight) — measureEntry mirrors this exactly.
+      // Inline placement: description starts on the SAME line as the title
+      // (mirrors the preview's nested span sharing one line box). Every
+      // combo line struts at max(20, 15.2×P) px; the strut owner for the
+      // baseline anchor is the title span when its strut wins, else the
+      // text-sm desc span (14px).
       const combo = `${title} ${ctx.descSeparator} ${description}`;
       const sepW = doc.getTextWidth(` ${ctx.descSeparator} `);
-      setFont(ctx, "bold", titleFontSize);
+      setFont(ctx, "bold", titleFsPt);
       const titleW = doc.getTextWidth(title);
-      setFont(ctx, "italic", bodyFontSize);
+      setFont(ctx, "italic", bodyFsPt);
       const comboLines = wrapText(doc, combo, contentWidth - yearW);
-      // First line: title + separator + description tail; wrapped remainder
-      // indented by CONT_INDENT_PT so it reads as part of the same item.
+      const strutIpx = Math.max(BODY_STRUT_PX, TITLE_FS_PX * P);
+      const strutIpt = px2pt(strutIpx);
+      const factorI = strutIpt / bodyFsPt;
+      const anchorI = anchorPt(strutIpx, strutTpx >= BODY_STRUT_PX ? TITLE_FS_PX : 14, ctx.baselineRatio);
       const wrapped = comboLines.length > 1;
 
-      setFont(ctx, "bold", titleFontSize);
+      // Line 0: title + separator + description tail, baseline = top + anchor.
+      setFont(ctx, "bold", titleFsPt);
       setText(ctx, primary);
-      doc.text(title, pageMargin, y);
-      setFont(ctx, "italic", bodyFontSize);
+      doc.text(title, pageMargin, top + anchorI);
+      setFont(ctx, "italic", bodyFsPt);
       setText(ctx, ctx.textColor);
-      doc.text(` ${ctx.descSeparator} `, pageMargin + titleW, y);
-      // lineHeightFactor 1: jsPDF's default 1.15 leading inside a text
-      // ARRAY would add ~2.3pt phantom per extra line — the advance below
-      // is bodyFontSize × lineHeight exactly, so the array must step by
-      // bodyFontSize × 1 (its remainder rows are 1 baseline apart).
-      doc.text(comboLines.slice(1), pageMargin + CONT_INDENT_PT, y + bodyFontSize * spacing.lineHeight, { lineHeightFactor: 1 });
+      doc.text(` ${ctx.descSeparator} `, pageMargin + titleW, top + anchorI);
       if (!wrapped) {
         const descOnFirst = doc.splitTextToSize(description, contentWidth - yearW - sepW - titleW) as string[];
-        doc.text(descOnFirst[0] ?? "", pageMargin + titleW + sepW, y);
+        doc.text(descOnFirst[0] ?? "", pageMargin + titleW + sepW, top + anchorI);
       } else {
         // First line carries as much description as fits after the separator:
         // comboLines[0] is `title sep descTail…` from the greedy wrap — redraw
-        // only the desc tail after the separator.
+        // only the desc tail after the separator. Remainder lines strut at
+        // strutIpx and sit CONT_INDENT_PT in (continuation indent).
         const tail = comboLines[0].slice(title.length + ` ${ctx.descSeparator} `.length);
-        if (tail) doc.text(tail, pageMargin + titleW + sepW, y);
+        if (tail) doc.text(tail, pageMargin + titleW + sepW, top + anchorI);
+        doc.text(comboLines.slice(1), pageMargin + CONT_INDENT_PT, top + anchorI + strutIpt, { lineHeightFactor: factorI });
       }
 
       if (yearText) {
-        setFont(ctx, "normal", yearFontSize);
+        setFont(ctx, "normal", yearFsPt);
         setText(ctx, ctx.mutedColor);
-        doc.text(yearText, pageMargin + contentWidth, y, { align: "right" });
+        doc.text(yearText, pageMargin + contentWidth, top + anchorI, { align: "right" });
       }
 
-      y += comboLines.length * (bodyFontSize * spacing.lineHeight);
+      top += comboLines.length * strutIpt;
     } else {
-      setFont(ctx, "bold", titleFontSize);
+      setFont(ctx, "bold", titleFsPt);
       setText(ctx, primary);
       const titleMaxWidth = contentWidth - yearW;
       const titleLines = doc.splitTextToSize(title, titleMaxWidth) as string[];
-      // lineHeightFactor 1 — advance below is titleLines.length × fontSize
-      // (jsPDF's default 1.15 leading would cram/spread array lines +15%).
-      doc.text(titleLines, pageMargin, y, { lineHeightFactor: 1 });
-      const titleBlockHeight = titleLines.length * titleFontSize;
+      // Array leading = the preset itself: strut(15.2×P px) / fs(15.2px) = P.
+      doc.text(titleLines, pageMargin, top + anchorT, { lineHeightFactor: P });
 
       if (yearText) {
-        setFont(ctx, "normal", yearFontSize);
+        setFont(ctx, "normal", yearFsPt);
         setText(ctx, ctx.mutedColor);
-        doc.text(yearText, pageMargin + contentWidth, y, { align: "right" });
+        // Baseline-aligned in the title row (items-baseline in the preview).
+        doc.text(yearText, pageMargin + contentWidth, top + anchorT, { align: "right" });
       }
 
-      y += titleBlockHeight;
+      top += titleLines.length * strutTpt;
     }
   }
 
   if (organization) {
-    setFont(ctx, "italic", bodyFontSize);
+    setFont(ctx, "italic", bodyFsPt);
     setText(ctx, ctx.mutedColor);
     const orgLines = doc.splitTextToSize(organization, contentWidth - CONT_INDENT_PT) as string[];
-    // lineHeightFactor 1 — advance matches measureEntry's lines × bodyFontSize × 1.1.
-    doc.text(orgLines, pageMargin + CONT_INDENT_PT, y, { lineHeightFactor: 1 });
-    y += orgLines.length * (bodyFontSize * 1.1);
+    // Org block top follows the title/combo lines' struts exactly (the DOM's
+    // line boxes chain block-tops through strut sums). 20px fixed struts.
+    // Drawn in BOTH placements — the preview's org div renders regardless of
+    // descriptionPlacement (cv-preview renderEntry has no inline guard).
+    doc.text(orgLines, pageMargin + CONT_INDENT_PT, top + anchorB, { lineHeightFactor: bodyFactor });
+    top += orgLines.length * strutBpt;
   }
 
   if (description && !ctx.inlineDesc) {
-    setFont(ctx, "italic", bodyFontSize);
+    setFont(ctx, "italic", bodyFsPt);
     setText(ctx, ctx.textColor);
     const descLines = wrapText(doc, description, contentWidth - CONT_INDENT_PT);
-    const lineH = bodyFontSize * spacing.lineHeight;
-    // No +0.4 first-line fudge: every below-desc line sits exactly on the
-    // flow grid (baseline at y + k × lineH), identical to measurement —
-    // the 0.4 pad skewed real rows and broke parity with the preview.
-    doc.text(descLines, pageMargin + CONT_INDENT_PT, y, { lineHeightFactor: 1 });
-    y += descLines.length * lineH;
+    // mt-1 (4px) sits between the org/title rows and the desc strut boxes.
+    const descTop = top + px2pt(DESC_MARGIN_PX);
+    doc.text(descLines, pageMargin + CONT_INDENT_PT, descTop + anchorB, { lineHeightFactor: bodyFactor });
+    top = descTop + descLines.length * strutBpt;
   } else if (description && !title) {
     // No-title fallback for inline placement: draw the description as a
     // plain indented block (line 1's separator only exists with a title).
-    setFont(ctx, "italic", bodyFontSize);
+    setFont(ctx, "italic", bodyFsPt);
     setText(ctx, ctx.textColor);
     const descLines = wrapText(doc, description, contentWidth - CONT_INDENT_PT);
-    doc.text(descLines, pageMargin + CONT_INDENT_PT, y, { lineHeightFactor: 1 });
-    y += descLines.length * bodyFontSize * spacing.lineHeight;
+    doc.text(descLines, pageMargin + CONT_INDENT_PT, top + anchorB, { lineHeightFactor: bodyFactor });
+    top += descLines.length * strutBpt;
   }
 
-  y += px2pt(spacing.item);
-  return y;
+  top += px2pt(spacing.item);
+  return top;
 }
 
 function renderSection(
@@ -791,23 +890,32 @@ async function renderProfileHeader(
     return y;
   }
   {
+    // No-photo branch: strut box model (matches profileHeaderHeightPt).
+    // Name h1: 28px, lh 1.2 → strut 33.6px, mb 4px; title div: 14px strut 21px
+    // (preflight). Baseline anchors mirror the DOM struts; TOP-aligned blocks
+    // via strut sums (no vertical centering).
+    const hasName = Boolean(name);
+    const hasTitle = Boolean(title);
     if (name) {
-      setFont(ctx, "bold", px2pt(28));
+      setFont(ctx, "bold", px2pt(28)); // 1.75rem
       setText(ctx, primary);
-      doc.text(name, pageMargin + contentWidth / 2, y + px2pt(12), { align: "center" });
+      doc.text(name, pageMargin + contentWidth / 2, y + anchorPt(33.6, 28, ctx.baselineRatio), { align: "center" });
     }
     if (title) {
       setFont(ctx, "normal", px2pt(14));
       setText(ctx, ctx.subtitle);
-      const titleY = name ? y + px2pt(28) : y + px2pt(14);
-      doc.text(title.toUpperCase(), pageMargin + contentWidth / 2, titleY, { align: "center" });
+      // Title block top = name strut + mb-4px (0 with no name).
+      const titleTop = y + px2pt(hasName ? 33.6 + 4 : 0);
+      doc.text(title.toUpperCase(), pageMargin + contentWidth / 2, titleTop + anchorPt(HEADER_TITLE_STRUT_PX, 14, ctx.baselineRatio), { align: "center" });
     }
-    y += px2pt(40) + px2pt(spacing.section);
+    // Block = 33.6 + 4 + 21 (both) — identical to profileHeaderHeightPt.
+    const blockPx = hasName && hasTitle ? 33.6 + 4 + HEADER_TITLE_STRUT_PX : hasName ? 33.6 : hasTitle ? HEADER_TITLE_STRUT_PX : 0;
+    y += px2pt(blockPx) + px2pt(spacing.section);
   }
 
-  // Divider line below header (no-photo layout only)
+  // Divider line below header (no-photo layout only) — 1px CSS border = 0.75pt
   setStroke(ctx, ctx.palette.surface);
-  doc.setLineWidth(0.5);
+  doc.setLineWidth(0.75);
   doc.line(pageMargin, y, pageMargin + contentWidth, y);
   doc.setLineWidth(0.2);
   y += px2pt(spacing.section);
@@ -837,29 +945,38 @@ interface FlowItem {
 }
 
 /** Per-style heading advance in pt — MUST equal renderHeading's return
- * advance for the given headingStyle: underline/border/default = y+px2pt(12),
- * "filled" = y-fontSize+boxH+px2pt(12) = y+18pt (fontSize 13.5, boxH 22.5),
- * "minimal" = y+px2pt(8). The heading glyph/box extends UPWARD from the
- * baseline; that space is covered by the PREVIOUS item's gap, so only the
- * downward advance counts here. */
+ *  advance (block-top flow: the return IS the next item's box top).
+ *  Headings strut at fontSize × 1.5 (preflight, preset-independent):
+ *  18px base → strut 27px; h2 margins: mb-3 = 12px (mb-2 = 8px for minimal).
+ *  underline: 27 + paddingBottom 4 + border 2 + mb-3 = 33.75pt
+ *  border:    27 + mb-3                    = 29.25pt
+ *  filled:    box(27 + 2×py6) + mb-3       = 33.75pt
+ *  minimal:   strut 24 (fs16 × 1.5) + mb-2 = 24pt
+ *  (Auto-shrink scales the strut with fontSize; renderHeading recomputes it
+ *  from the same formula, so the constants here assume the un-shrunk base.) */
 function headingAdvancePt(headingStyle: string): number {
   switch (headingStyle) {
     case "filled":
-      return 18; // pt: -fontSize(13.5) + boxH(22.5) + 9 (=12px)
+      return px2pt(27 + 6 * 2 + 12);
     case "minimal":
-      return px2pt(8);
+      return px2pt(24 + 8);
+    case "underline":
+      return px2pt(27 + 4 + 2 + 12);
+    case "border":
+      return px2pt(27 + 12);
     default:
-      return px2pt(12);
+      return px2pt(21);
   }
 }
 
 /** Exact height the profile header will consume on page 1 — MUST mirror
- * renderProfileHeader. PHOTO branch: photo (96px) + ONE section gap
- * (no divider, no second gap, no phantom rim/gap padding — the old
- * `+16px` charged the header's horizontal gap-4 vertically and pushed
- * every flow Y 12pt too low when a photo was set). NO-photo branch:
- * name/title block (40px) + section gap + divider line (0.5pt) + section
- * gap — the render's full advance, incl. the hairline. */
+ *  renderProfileHeader. Strut box model, probe-verified:
+ *  PHOTO branch: photo (96px) + ONE section gap — no divider, no second gap
+ *  (name/title are TOP-aligned with the photo, so the 58.59px text block
+ *  never exceeds the 96px photo).
+ *  NO-photo branch: name h1 (28px, lh 1.2 → strut 33.6px, mb 4px) + title div
+ *  (14px, preflight lh 1.5 → strut 21px) = 58.59px block + section gap +
+ *  divider (0.5pt) + section gap — the render's full advance. */
 function profileHeaderHeightPt(data: PdfCVData, spacingSection: number): number {
   const hasNameOrTitle = Boolean(sanitizeText(data.profileName) || sanitizeText(data.profileTitle));
   const hasPhoto = Boolean(data.profilePicture);
@@ -867,7 +984,13 @@ function profileHeaderHeightPt(data: PdfCVData, spacingSection: number): number 
   if (hasPhoto) {
     return px2pt(96) + px2pt(spacingSection);
   }
-  return px2pt(40) + px2pt(spacingSection) * 2 + 0.5;
+  // Name+title: 33.6 + 4 + 21 = 58.59px. Title-only: 21px. Name-only: 33.6.
+  const hasName = Boolean(sanitizeText(data.profileName));
+  const hasTitle = Boolean(sanitizeText(data.profileTitle));
+  const blockPx = hasName && hasTitle ? 33.6 + 4 + 21 : hasName ? 33.6 : hasTitle ? 21 : 0;
+  // The header's divider is a real CSS border (1px = 0.75pt): charge it in
+  // BOTH measure and render (renders must advance past the hairline too).
+  return px2pt(blockPx) + px2pt(spacingSection) * 2 + 0.75;
 }
 
 function flowLayout(
@@ -900,12 +1023,16 @@ function flowLayout(
     const title = sanitizeText(translation?.title ?? "");
     const organization = sanitizeText(translation?.organization ?? "");
     const description = sanitizeText(translation?.description ?? "");
-    const titleFontSize = px2pt(15.2);
-    const bodyFontSize = px2pt(14);
+    // Strut constants — identical to renderEntry (single source of truth: the
+    // dom-strut-parity spec). Title rows 15.2px × preset; org/desc rows 20px
+    // FIXED (text-sm); inline combo rows max(20, 15.2×preset); desc mt-1 4px.
+    const P = spacing.lineHeight;
+    const strutTpt = px2pt(TITLE_FS_PX * P);
+    const strutBpt = px2pt(BODY_STRUT_PX);
     let h = 0;
     // MIRRORS renderEntry exactly — every branch here has a twin there.
     if (title) {
-      setFont(ctx, "bold", titleFontSize);
+      setFont(ctx, "bold", px2pt(TITLE_FS_PX));
       // Reserve space for the right-aligned year like the real renderer does
       // (free-text year e.g. "2017-2021" wins over the int year column).
       const yearText =
@@ -914,39 +1041,38 @@ function flowLayout(
       const yearW = yearText ? doc.getTextWidth(yearText) + px2pt(12) : 0;
 
       if (ctx.inlineDesc && description) {
-        // Inline placement: combo wraps at contentWidth − yearW; advance is
-        // the wrap count × body line-height (renderEntry draws line 1 as
-        // title + separator + tail and the indented remainder lines).
-        setFont(ctx, "bold", titleFontSize);
+        // Inline placement: combo wraps at contentWidth − yearW; every combo
+        // line struts at max(20, 15.2×P) px (nested desc span raises the
+        // line box — DOM-verified).
         const combo = `${title} ${ctx.descSeparator} ${description}`;
-        setFont(ctx, "italic", bodyFontSize);
+        setFont(ctx, "italic", px2pt(14));
         const comboLines = wrapText(doc, combo, Math.max(60, width - yearW));
-        h += comboLines.length * (bodyFontSize * spacing.lineHeight);
+        h += comboLines.length * px2pt(Math.max(BODY_STRUT_PX, TITLE_FS_PX * P));
       } else {
         const lines = doc.splitTextToSize(title, Math.max(40, width - yearW)) as string[];
-        h += lines.length * titleFontSize;
+        h += lines.length * strutTpt;
       }
     } else if (ctx.inlineDesc && description) {
       // No title but inline description: it renders as a plain wrapped block
       // at the full (indented) width — measure at the same width.
-      setFont(ctx, "italic", bodyFontSize);
+      setFont(ctx, "italic", px2pt(14));
       const lines = wrapText(doc, description, Math.max(40, width - CONT_INDENT_PT));
-      h += lines.length * bodyFontSize * spacing.lineHeight;
+      h += lines.length * strutBpt;
     }
-    if (organization && !(ctx.inlineDesc && description)) {
+    if (organization) {
       // Continuation row: measured at the INDENTED width (renderEntry draws
-      // org lines at x + CONT_INDENT_PT with wrap width − indent).
-      setFont(ctx, "italic", bodyFontSize);
+      // org lines at x + CONT_INDENT_PT with wrap width − indent). Rendered
+      // in BOTH placements — the preview always renders the org div.
+      setFont(ctx, "italic", px2pt(14));
       const lines = doc.splitTextToSize(organization, Math.max(40, width - CONT_INDENT_PT)) as string[];
-      h += lines.length * (bodyFontSize * 1.1);
+      h += lines.length * strutBpt;
     }
     if (description && !ctx.inlineDesc) {
-      setFont(ctx, "italic", bodyFontSize);
+      setFont(ctx, "italic", px2pt(14));
       const lines = wrapText(doc, description, Math.max(40, width - CONT_INDENT_PT));
-      // Advance exactly mirrors renderEntry: lines × lineHeight, no extra
-      // first-line pad (the old +0.4·fs was render-only phantom space that
-      // broke the measurement↔render grid and drifted pagination).
-      h += lines.length * bodyFontSize * spacing.lineHeight;
+      // mt-1 (4px) + 20px struts — no fontSize-derived line-height here
+      // (text-sm's 20px strut is preset-INDEPENDENT; DOM-probe verified).
+      h += px2pt(DESC_MARGIN_PX) + lines.length * strutBpt;
     }
     h += px2pt(spacing.item);
     return h;
@@ -1290,6 +1416,12 @@ export async function exportToPdf(
   const isSerif = serifKeywords.some((kw) => fontStack.includes(kw));
   const fontFam = isSerif ? "times" : "helvetica";
 
+  // Baseline anchor ratio for the strut model. The preview DOM renders with
+  // the REAL webfont; measure its fontBoundingBox metrics the same way when
+  // running in a browser (canvas is available), fall back to 0.363 under Node.
+  const fontStackCss = getFontStack(fontValue);
+  const baselineRatio = computeBaselineRatio(fontStackCss);
+
   let fontStyles: Record<FontStyle, string> | undefined;
   let embedded = false;
   try {
@@ -1330,6 +1462,7 @@ export async function exportToPdf(
     fontFam,
     fontStyles,
     embedded,
+    baselineRatio,
   };
 
   // Filter enabled sections and entries
