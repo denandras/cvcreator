@@ -138,10 +138,9 @@ export function TranslationPanel({
       {/* Sections with entries */}
       {sections.map((section) => {
         const sectionTitleTranslation = (
-          section as SectionWithEntries & {
-            title_translations?: Record<string, string>;
-          }
-        ).title_translations?.[secondaryLang];
+          (section.layout_config as Record<string, unknown> | undefined)
+            ?.sectionTitleTranslations as Record<string, string> | undefined
+        )?.[secondaryLang];
         const sectionTitleUntranslated =
           secondaryLang !== "primary" && !sectionTitleTranslation;
         return (
