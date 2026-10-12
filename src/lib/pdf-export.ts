@@ -27,12 +27,19 @@ export interface PdfCVData {
 }
 
 interface PdfExportOptions {
-  /** Filename without extension */
+  /** Filename (without extension) */
   profileName?: string;
   /** Whether to include the photo */
   includePhoto?: boolean;
   /** "save" (default, browser download) or "arraybuffer" (returns bytes — used by tests/harnesses) */
   output?: "save" | "arraybuffer";
+  /** Multi-language merged export: ordered plan (PRIMARY FIRST). Every
+   *  language gets its own flow-paginated pages with its own profile header,
+   *  appended into the same PDF. The per-language profile name/title must be
+   *  RESOLVED by the caller (translation override or primary fallback), and
+   *  the codes are joined into the filename (…_hu-en.pdf).
+   *  Undefined/empty = single-language export of data.activeLang (default). */
+  allLanguages?: { code: string; name: string; title: string }[];
 }
 
 // ─── Font embedding ───────────────────────────────────────────────────────────
@@ -1360,8 +1367,16 @@ export async function exportToPdf(
     );
   }
 
+  const filenameBase = (options.profileName || data.profileName || "CV").replace(
+    /[^a-zA-Z0-9_-]/g,
+    "_"
+  );
+  // Merged multi-language exports carry the language codes in the filename
+  // (…_hu-en.pdf) so the file identifies what is inside it.
   const filename =
-    (options.profileName || data.profileName || "CV").replace(/[^a-zA-Z0-9_-]/g, "_") + ".pdf";
+    options.allLanguages && options.allLanguages.length > 1
+      ? `${filenameBase}_${options.allLanguages.map((l) => l.code).join("-")}.pdf`
+      : `${filenameBase}.pdf`;
 
   const doc = new jsPDF({
     orientation: "portrait",
@@ -1472,32 +1487,58 @@ export async function exportToPdf(
     entries: s.entries.filter((e) => e.is_enabled),
   }));
 
-  // Determine page distribution: always the flow layout (pure flow +
-  // per-section page_break_before flags from layout_config).
-  const pageSections = (() => {
-    const profileHeaderHeight = profileHeaderHeightPt(data, spacing.section);
-    return flowLayout(ctx, enabledSectionsWithEntries, profileHeaderHeight);
-  })();
+  // Language plan: one complete document per language, appended into THIS PDF.
+  // Default (no allLanguages plan) = the active language only — the original
+  // single-language behaviour.
+  const languagePlan =
+    options.allLanguages && options.allLanguages.length > 0
+      ? options.allLanguages
+      : [{ code: data.activeLang, name: data.profileName, title: data.profileTitle }];
 
-  // Render pages
-  for (let pageIdx = 0; pageIdx < pageSections.length; pageIdx++) {
-    if (pageIdx > 0) doc.addPage();
+  let freshPageAvailable = true;
+  for (const language of languagePlan) {
+    // Per-language data: translations and the header name/title resolve on
+    // activeLang, so flow pagination must be recomputed for every language
+    // (wrap counts and the profile-header height can differ per language).
+    const langData: PdfCVData = {
+      ...data,
+      activeLang: language.code,
+      profileName: language.name,
+      profileTitle: language.title,
+    };
+    const langCtx: RenderContext = { ...ctx, activeLang: language.code };
 
-    drawPageBackground(ctx);
+    // Determine page distribution: always the flow layout (pure flow +
+    // per-section page_break_before flags from layout_config).
+    const pageSections = flowLayout(
+      langCtx,
+      enabledSectionsWithEntries,
+      profileHeaderHeightPt(langData, spacing.section)
+    );
 
-    let y = pageMargin;
+    for (let pageIdx = 0; pageIdx < pageSections.length; pageIdx++) {
+      // The doc's initial blank page serves the FIRST page of the FIRST
+      // language; every later page — including each following language's
+      // first page — starts with addPage().
+      if (!freshPageAvailable || pageIdx > 0) doc.addPage();
+      freshPageAvailable = false;
 
-    if (pageIdx === 0) {
-      const pageData: PdfCVData = {
-        ...data,
-        profilePicture:
-          options.includePhoto === false ? null : data.profilePicture,
-      };
-      y = await renderProfileHeader(ctx, pageData);
-    }
+      drawPageBackground(langCtx);
 
-    for (const section of pageSections[pageIdx]) {
-      y = renderSection(ctx, section, y);
+      let y = pageMargin;
+
+      if (pageIdx === 0) {
+        const pageData: PdfCVData = {
+          ...langData,
+          profilePicture:
+            options.includePhoto === false ? null : data.profilePicture,
+        };
+        y = await renderProfileHeader(langCtx, pageData);
+      }
+
+      for (const section of pageSections[pageIdx]) {
+        y = renderSection(langCtx, section, y);
+      }
     }
   }
 

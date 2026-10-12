@@ -131,17 +131,20 @@ export function EditorClient() {
     Record<string, { name: string; title: string }>
   >({});
 
-  // Resolved values for the active language: secondary-language override if
-  // present (non-empty), otherwise the primary-language value.
-  const activeProfile = (() => {
-    if (activeLang !== primaryLang) {
-      const t = profileTranslations[activeLang];
+  // Resolved profile values per language: secondary-language override if
+  // present (non-empty), otherwise the primary-language value. Shared by the
+  // preview header (activeProfile) and the merged all-languages PDF export so
+  // both paths resolve identically.
+  const resolveProfileFor = (langCode: string): { name: string; title: string } => {
+    if (langCode !== primaryLang) {
+      const t = profileTranslations[langCode];
       if (t && (t.name || t.title)) {
         return { name: t.name, title: t.title };
       }
     }
     return { name: profileName, title: profileTitle };
-  })();
+  };
+  const activeProfile = resolveProfileFor(activeLang);
 
   // Page breaks: per-section layout_config.page_break_before — no separate state
 
@@ -705,22 +708,39 @@ export function EditorClient() {
 
   // ─── PDF export handler ──────────────────────────────────────────────────────
 
-  const handleExportPdf = async () => {
+  const handleExportPdf = async (merged = false) => {
     if (!previewRef.current) return;
     setPdfExporting(true);
     try {
+      // Merged export: primary language first, then the rest in list order.
+      // Header per language = resolved profile (translation override / primary).
+      const mergePlan = merged
+        ? [
+            primaryLang,
+            ...languages.filter((l) => l.code !== primaryLang).map((l) => l.code),
+          ].map((code) => {
+            const p = resolveProfileFor(code);
+            return { code, name: p.name, title: p.title };
+          })
+        : undefined;
+      // Merged PDF metadata uses the PRIMARY profile values (stable regardless
+      // of which language is currently active in the editor).
+      const profile = merged
+        ? { name: profileName, title: profileTitle }
+        : activeProfile;
       const cvData: PdfCVData = {
-        profileName: activeProfile.name,
-        profileTitle: activeProfile.title,
+        profileName: profile.name,
+        profileTitle: profile.title,
         profilePicture: includePhotoInPdf ? profilePicture : null,
         sections,
         design: designForm,
         activeLang,
       };
       await exportToPdf(previewRef.current, {
-        profileName: activeProfile.name || "CV",
+        profileName: profile.name || "CV",
         includePhoto: includePhotoInPdf,
         cvData,
+        allLanguages: mergePlan,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to export PDF");
@@ -818,7 +838,7 @@ export function EditorClient() {
         <div className="flex items-center gap-1.5">
           {/* PDF export */}
           <button
-            onClick={handleExportPdf}
+            onClick={() => handleExportPdf(false)}
             disabled={pdfExporting || !sections.length}
             className="p-2 rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             aria-label="Export PDF"
@@ -832,6 +852,30 @@ export function EditorClient() {
             ) : (
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.293a1 1 0 011.414 0L9 11.586V3a1 1 0 112 0v8.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" />
+              </svg>
+            )}
+          </button>
+
+          {/* PDF export — all languages merged into one file */}
+          <button
+            onClick={() => handleExportPdf(true)}
+            disabled={pdfExporting || !sections.length || languages.length < 2}
+            className="p-2 rounded-lg bg-white border border-teal-600 text-teal-600 hover:bg-teal-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            aria-label="Export PDF — all languages merged"
+            title={
+              languages.length < 2
+                ? "Add a language below to export all languages in one PDF"
+                : "Export PDF — all languages merged"
+            }
+          >
+            {pdfExporting ? (
+              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2 4.25A2.25 2.25 0 014.25 2h6.5A2.25 2.25 0 0113 4.25V5.5H9.25A3.75 3.75 0 005.5 9.25V13H4.25A2.25 2.25 0 012 10.75v-6.5zM9.25 7A2.25 2.25 0 007 9.25v6.5A2.25 2.25 0 009.25 18h6.5A2.25 2.25 0 0018 15.75v-6.5A2.25 2.25 0 0015.75 7h-6.5z" />
               </svg>
             )}
           </button>

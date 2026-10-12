@@ -235,10 +235,19 @@ export function DemoEditor() {
 
   // ─── PDF export handler ──────────────────────────────────────────────────────
 
-  const handleExportPdf = async () => {
+  const handleExportPdf = async (merged = false) => {
     if (!previewRef.current) return;
     setPdfExporting(true);
     try {
+      // Merged export: primary language first, then the rest in list order.
+      // Demo has no per-language profile overrides — every header reuses the
+      // demo profile name/title.
+      const mergePlan = merged
+        ? [
+            primaryLang,
+            ...languages.filter((l) => l.code !== primaryLang).map((l) => l.code),
+          ].map((code) => ({ code, name: profileName, title: profileTitle }))
+        : undefined;
       const cvData: PdfCVData = {
         profileName,
         profileTitle,
@@ -251,6 +260,7 @@ export function DemoEditor() {
         profileName: profileName || "CV",
         includePhoto: includePhotoInPdf,
         cvData,
+        allLanguages: mergePlan,
       });
     } catch (err) {
       console.error("Failed to export PDF:", err);
@@ -636,7 +646,7 @@ export function DemoEditor() {
 
           {/* PDF export */}
           <button
-            onClick={handleExportPdf}
+            onClick={() => handleExportPdf(false)}
             disabled={pdfExporting || !sections.length}
             className="p-2 rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             aria-label="Export PDF"
@@ -650,6 +660,30 @@ export function DemoEditor() {
             ) : (
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.293a1 1 0 011.414 0L9 11.586V3a1 1 0 112 0v8.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" />
+              </svg>
+            )}
+          </button>
+
+          {/* PDF export — all languages merged into one file */}
+          <button
+            onClick={() => handleExportPdf(true)}
+            disabled={pdfExporting || !sections.length || languages.length < 2}
+            className="p-2 rounded-lg bg-white border border-teal-600 text-teal-600 hover:bg-teal-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            aria-label="Export PDF — all languages merged"
+            title={
+              languages.length < 2
+                ? "Add a language to export all languages in one PDF"
+                : "Export PDF — all languages merged"
+            }
+          >
+            {pdfExporting ? (
+              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2 4.25A2.25 2.25 0 014.25 2h6.5A2.25 2.25 0 0113 4.25V5.5H9.25A3.75 3.75 0 005.5 9.25V13H4.25A2.25 2.25 0 012 10.75v-6.5zM9.25 7A2.25 2.25 0 007 9.25v6.5A2.25 2.25 0 009.25 18h6.5A2.25 2.25 0 0018 15.75v-6.5A2.25 2.25 0 0015.75 7h-6.5z" />
               </svg>
             )}
           </button>
