@@ -5,6 +5,13 @@ export interface FontOption {
   label: string;
   stack: string;
   preview: string;
+  /**
+   * False only when the family provably lacks a European glyph we promise
+   * (verified by scripts/check-font-coverage.py). Consumers must not offer a
+   * coverage gap: the preview and the PDF embed the same merged TTF, so a
+   * missing glyph is a .notdef box in the document the user sends out.
+   */
+  complete?: boolean;
 }
 
 export const FONT_OPTIONS: FontOption[] = [
@@ -59,6 +66,9 @@ export const FONT_OPTIONS: FontOption[] = [
   {
     value: "poppins",
     label: "Poppins",
+    // No U+1E9E (capital ẞ) in the latin-ext subset; ß is present. Kept in the
+    // list but flagged — the exporter falls back for that one glyph.
+    complete: false,
     stack: "'Poppins', system-ui, sans-serif",
     preview: "Aa Bb Cc 123",
   },

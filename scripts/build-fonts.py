@@ -183,3 +183,20 @@ with open(os.path.join(OUT, "fonts.css"), "w") as f:
 print("\n".join(report))
 print(f"\nfamilies: {len(manifest)}, styles total: {sum(len(v) for v in manifest.values())}")
 print(f"fonts.css: {len(rules)} @font-face rules -> {os.path.join(OUT, 'fonts.css')}")
+
+# Coverage gate: every built file must carry Hungarian (ő/Ű live only in the
+# latin-ext subset) plus the European letter set. A missing glyph is missing in
+# BOTH renderers — the PDF draws .notdef, the browser silently falls back to a
+# second face — so this is a hard check, not a report line.
+import subprocess
+import sys
+
+_coverage = subprocess.run(
+    [sys.executable, os.path.join(REPO, "scripts", "check-font-coverage.py")],
+    capture_output=True,
+    text=True,
+)
+print(_coverage.stdout.rstrip())
+if _coverage.returncode != 0:
+    print("COVERAGE CHECK FAILED — fix the glyph gaps above before shipping these fonts.")
+    sys.exit(_coverage.returncode)

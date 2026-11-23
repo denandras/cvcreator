@@ -156,9 +156,13 @@ export function DesignSidebar({
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-900">{font.label}</span>
-                        {isActive && (
+                        {font.complete === false ? (
+                          <span className="text-[11px] text-amber-700 font-medium" title="This family has no capital ẞ (U+1E9E); Hungarian and every other European letter are covered.">
+                            partial coverage
+                          </span>
+                        ) : isActive ? (
                           <span className="text-xs text-teal-600 font-medium">Active</span>
-                        )}
+                        ) : null}
                       </div>
                       <div
                         className="text-lg mt-1 text-gray-600"
