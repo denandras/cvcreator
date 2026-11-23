@@ -11,6 +11,21 @@ import {
   type ColorPalette,
   type TemplateConfig,
 } from "@/lib/design-constants";
+import {
+  sanitizeFlowText as sanitizeText,
+  resolveHeadingStyle,
+  contentBoxWidthPx,
+  contentBoxHeightPx,
+  pageMarginPx,
+  HEADER_TITLE_STRUT_PX,
+  CONTACT_LINE_PX,
+  computeFlowBlocks,
+  paginate,
+  contactLines,
+  type ContactLine,
+  type FlowMeasure,
+  type FlowChunk,
+} from "@/lib/cv-flow-layout";
 
 /**
  * Structure that fully describes the CV for vector PDF rendering.
@@ -40,6 +55,14 @@ interface PdfExportOptions {
    *  the codes are joined into the filename (…_hu-en.pdf).
    *  Undefined/empty = single-language export of data.activeLang (default). */
   allLanguages?: { code: string; name: string; title: string }[];
+  /** TEST/HARNESS HOOK (Step 8): per-style baseline anchor ratios measured
+   *  in the real browser — keys "<i?><weight>|<fsPx>|<strutPx>" exactly as
+   *  probeStyleRatios()/scripts/capture-preview-boxes.js produce them
+   *  (`probeRatios`). When present, the DOM probe is skipped and these are
+   *  authoritative; a missing key falls back to the canvas/fallback ratio.
+   *  scripts/cv-row-parity.js --browser-metrics uses it to reproduce the
+   *  in-browser export's placement under Node. */
+  baselineRatios?: Record<string, number>;
 }
 
 // ─── Font embedding ───────────────────────────────────────────────────────────
@@ -68,7 +91,7 @@ interface FontCacheEntry {
   unavailable?: boolean;
 }
 
-type FontStyle = "normal" | "bold" | "italic" | "bolditalic";
+type FontStyle = "normal" | "bold" | "italic" | "bolditalic" | "medium" | "semibold";
 
 /** App font ids (same values as design-constants FONT_OPTIONS) */
 const FONT_IDS = new Set([
@@ -146,6 +169,12 @@ async function registerFontFamily(
     const styleDefs: Array<{ key: FontStyle; suffix: string }> = [
       { key: "normal", suffix: "400" },
       { key: "bold", suffix: "700" },
+      // The preview's font-medium (subtitle, year) / font-semibold (entry
+      // titles, minimal headings) faces — weight parity, REPORT §4 Step 8.
+      // A family without a static 500/600 file simply skips the fetch and
+      // the resolution chain below falls back like CSS weight matching.
+      { key: "medium", suffix: "500" },
+      { key: "semibold", suffix: "600" },
       ...(hasItalic
         ? ([
             { key: "italic", suffix: "400-italic" },
@@ -202,6 +231,11 @@ async function registerFontFamily(
     bold: styleFam.bold ?? styleFam.normal ?? "helvetica",
     italic: styleFam.italic ?? styleFam.normal ?? "helvetica",
     bolditalic: styleFam.bolditalic ?? styleFam.bold ?? styleFam.normal ?? "helvetica",
+    // CSS weight matching: a missing 500 resolves to the 400 face first,
+    // a missing 600 to the 700 face (spec: desired 500 looks below first,
+    // desired 600 looks above first).
+    medium: styleFam.medium ?? styleFam.normal ?? "helvetica",
+    semibold: styleFam.semibold ?? styleFam.bold ?? styleFam.normal ?? "helvetica",
   };
 
   return {
@@ -265,14 +299,6 @@ function readableOn(bg: string): [number, number, number] {
   return contrastRatio(bg, "#ffffff") >= 3.2 ? [255, 255, 255] : rgb255("#1a1a1a");
 }
 
-/** Strip whitespace and collapse newlines for PDF text rendering */
-function sanitizeText(text: string): string {
-  return text
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
 /**
  * Build a download filename base from the profile name.
  * Accented letters are TRANSLITERATED, not replaced with "_": "Dénes András"
@@ -316,8 +342,6 @@ const TITLE_FS_PX = 15.2;
 /** Org/description rows (Tailwind text-sm): FIXED 20px strut
  *  (line-height: 1.25rem) — preset-INDEPENDENT. */
 const BODY_STRUT_PX = 20;
-/** Profile header title div (0.875rem at preflight 1.5): 21px strut. */
-const HEADER_TITLE_STRUT_PX = 21;
 /** Below-mode description block mt-1 (4px). */
 const DESC_MARGIN_PX = 4;
 
@@ -328,6 +352,29 @@ const DESC_MARGIN_PX = 4;
 function anchorPt(strutPx: number, fsPx: number, ratio: number): number {
   return px2pt(strutPx / 2 + fsPx * ratio);
 }
+
+// ─── Letter spacing (ONE owner of the preview's tracking, Step 8) ───────────
+// The preview's CSS is the reference: Tailwind classes (tracking-wide 0.025em,
+// tracking-wider 0.05em, tracking-widest 0.1em — tailwind v3 defaults, no
+// project override) and the inline letterSpacing styles that win over them.
+// jsPDF's charSpace adds Tc after every glyph (including the last), matching
+// CSS's per-character spacing; charSpace_pt = em × drawn fontSize_pt, so the
+// tracking scales with the auto-shrunk heading size automatically.
+const TRACKING_EM = {
+  /** cv-preview h1: style={{ letterSpacing: "-0.02em" }} */
+  name: -0.02,
+  /** cv-preview subtitle div: inline letterSpacing 0.1em (overrides its
+   *  `tracking-wider` class — inline style wins). */
+  subtitle: 0.1,
+  /** h2 underline: `tracking-wide`. */
+  headingUnderline: 0.025,
+  /** h2 border: `tracking-wider`. */
+  headingBorder: 0.05,
+  /** h2 filled: `tracking-wider`. */
+  headingFilled: 0.05,
+  /** h2 minimal: inline letterSpacing 0.15em (overrides `tracking-widest`). */
+  headingMinimal: 0.15,
+} as const;
 
 /** ((asc − desc) / 2) as a fraction of em, measured from canvas
  *  fontBoundingBox metrics for the given CSS font stack (browser only). */
@@ -350,6 +397,82 @@ function computeBaselineRatio(fontStackCss: string): number {
   } catch {
     return FALLBACK;
   }
+}
+
+// ─── Per-style baseline anchors (Step 8, probe-verified) ──────────────────────
+//
+// The preview's line boxes are laid out by the SAME engine the export runs in,
+// so the exact (asc−desc)/2 the strut formula needs is MEASURABLE, per drawn
+// (weight, size, strut): render one off-screen line box with the same
+// font/size/line-height and read the baseline (empty inline-block bottom)
+// relative to its top. This reproduces the DOM's placement exactly — measured
+// on the demo CV (Inter): probe O values 26/16/20/17/12/15 px for
+// name/subtitle/heading/title/year/body vs the canvas-at-100px ratio 0.365,
+// which misplaces the name baseline by ~1 px. The probe is awaited through
+// document.fonts.load for the exact face, so it cannot resolve the fallback
+// family by accident (the old canvas measurement could, nondeterministically).
+//
+// Under Node (harnesses/gate) there is no DOM: the map stays empty and every
+// style falls back to `baselineRatio`. scripts/capture-preview-boxes.js emits
+// the probed values as `probeRatios` so the gate can reproduce the in-browser
+// placement via PdfExportOptions.baselineRatios (see scripts/cv-row-parity.js
+// --browser-metrics).
+
+/** One line box the export draws — the probe identity. */
+interface AnchorTriple {
+  /** CSS font-weight of the face (400 | 500 | 600 | 700). */
+  weight: number;
+  italic: boolean;
+  fsPx: number;
+  strutPx: number;
+}
+
+/** Shared key format with the fixture (capture-preview-boxes.js): numbers are
+ *  rounded to 2 decimals so float arithmetic cannot split a key. */
+function anchorKey(t: AnchorTriple): string {
+  const r2 = (n: number) => +n.toFixed(2);
+  return `${t.italic ? "i" : ""}${t.weight}|${r2(t.fsPx)}|${r2(t.strutPx)}`;
+}
+
+/** Probe the engine's baseline offset O (px) for each (weight, fs, strut) —
+ *  in the browser only; returns {} everywhere else. */
+async function probeStyleRatios(
+  fontStackCss: string,
+  triples: AnchorTriple[]
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (typeof document === "undefined") return out;
+  const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+  if (!fonts?.load || !document.body) return out;
+  try {
+    await Promise.all(
+      triples.map((t) =>
+        fonts
+          .load(`${t.italic ? "italic " : ""}${t.weight} ${t.fsPx}px ${fontStackCss}`)
+          .catch(() => null)
+      )
+    );
+    for (const t of triples) {
+      const d = document.createElement("div");
+      d.style.cssText =
+        `position:fixed;left:-99999px;top:0;white-space:nowrap;` +
+        `font-family:${fontStackCss};font-weight:${t.weight};` +
+        `${t.italic ? "font-style:italic;" : ""}` +
+        `font-size:${t.fsPx}px;line-height:${t.strutPx}px;`;
+      d.appendChild(document.createTextNode("Hx"));
+      const s = document.createElement("span");
+      s.style.cssText = "display:inline-block;width:0;height:0;";
+      d.appendChild(s);
+      document.body.appendChild(d);
+      const O = s.getBoundingClientRect().bottom - d.getBoundingClientRect().top;
+      d.remove();
+      const ratio = (O - t.strutPx / 2) / t.fsPx;
+      if (Number.isFinite(ratio)) out.set(anchorKey(t), ratio);
+    }
+  } catch {
+    // probing failed — callers fall back to baselineRatio
+  }
+  return out;
 }
 
 /** Wrap text within a given width using jsPDF's text wrapping */
@@ -429,6 +552,10 @@ interface RenderContext {
   profileImagePosition: string;
   activeLang: string;
   contentWidth: number; // in pt
+  /** Content-box height in pt (px2pt of cv-flow-layout's contentBoxHeightPx)
+   *  — the top-anchored bound of the flow, and the TOP of the bottom
+   *  margin band where the end-of-CV contact block draws. */
+  contentHeightPt: number;
   pageHeightPt: number;
   pageWidthPt: number;
   fontFam: string; // "helvetica" or "times" (built-in fallback)
@@ -437,6 +564,9 @@ interface RenderContext {
   /** (asc−desc)/2 em fraction of the active webfont (canvas-measured in the
    *  browser; 0.363 fallback) — drives the strut baseline anchors below. */
   baselineRatio: number;
+  /** Per-style baseline ratios (browser-probed / harness-injected, see
+   *  probeStyleRatios). A missing key falls back to `baselineRatio`. */
+  styleRatios?: Map<string, number>;
   /** Description placement: "below" (own line) or "inline" (after title/org) */
   inlineDesc: boolean;
   /** Separator used in inline placement ("—", ":", "·", "•", "|") */
@@ -493,15 +623,36 @@ function setText(ctx: RenderContext, color: string): void {
   ctx.doc.setTextColor(r, g, b);
 }
 
+/** Built-in jsPDF families only ship normal/bold/italic/bolditalic — map the
+ * preview's 500/600 logical styles onto the closest built-in face (same rule
+ * as the embedded resolution chain above: 500→400, 600→700). */
+const BUILTIN_STYLE: Record<FontStyle, string> = {
+  normal: "normal",
+  bold: "bold",
+  italic: "italic",
+  bolditalic: "bolditalic",
+  medium: "normal",
+  semibold: "bold",
+};
+
 function setFont(ctx: RenderContext, style: FontStyle, sizePt: number): void {
   const fam = ctx.embedded ? ctx.fontStyles?.[style] : undefined;
   if (fam) {
     // Unique per-style families are registered with the single "normal" style.
     ctx.doc.setFont(fam, "normal");
   } else {
-    ctx.doc.setFont(ctx.fontFam, style);
+    ctx.doc.setFont(ctx.fontFam, BUILTIN_STYLE[style] ?? style);
   }
   ctx.doc.setFontSize(sizePt);
+}
+
+/** The strut-formula ratio for one drawn line box: the per-style probed value
+ *  when available (browser / harness-injected), else the single fallback. */
+function styleRatio(
+  ctx: RenderContext,
+  t: AnchorTriple
+): number {
+  return ctx.styleRatios?.get(anchorKey(t)) ?? ctx.baselineRatio;
 }
 
 function drawPageBackground(ctx: RenderContext): void {
@@ -533,58 +684,71 @@ function drawPageBackground(ctx: RenderContext): void {
 function renderHeading(
   ctx: RenderContext,
   title: string,
-  y: number
-): number {
+  y: number,
+  fontSizePt: number
+): void {
   const { doc, template, accent, primary, borderRadius, pageMargin, contentWidth } = ctx;
   const text = title.toUpperCase();
-  const ratio = ctx.baselineRatio;
 
-  // Bigger section titles (was 14pt): shrink only if the measured title
-  // would exceed the content width.
-  const fitPt = (basePt: number, padPt: number): number => {
-    if (!text) return basePt;
-    const probe = { ...ctx } as RenderContext;
-    doc.setFont(probe.fontFam ?? "helvetica", "bold");
-    const sizeRatio = doc.getTextWidth(text) / (basePt || 1); // width per pt at base size
-    const avail = contentWidth - padPt * 2;
-    if (sizeRatio * basePt > avail && sizeRatio > 0) {
-      return Math.max(8, (basePt * avail) / (sizeRatio * basePt));
-    }
-    return basePt;
-  };
-  const fontSize = fitPt(px2pt(18), 0);
+  // Font size (auto-shrunk or base) comes from the shared flow plan — the
+  // same measured size cv-flow-layout computed the heading block's box
+  // with, so the drawn heading and the paginated model cannot drift.
+  const fontSize = fontSizePt;
   // Heading strut in px (fs × 1.5 from preflight) — scales with auto-shrink.
   const fsPx = fontSize / 0.75;
   const strutPx = fsPx * 1.5;
-  const baselineOff = anchorPt(strutPx, fsPx, ratio);
+  // Preview's weight + tracking per style: `tracking-wide/wider` classes and
+  // the minimal style's inline 0.15em (TRACKING_EM is the ONE owner); the
+  // minimal h2 is `font-semibold` (600), all others `font-bold` (700).
+  const isMinimal = template.headingStyle === "minimal";
+  const headingFont: FontStyle = isMinimal ? "semibold" : "bold";
+  const headingWeight = isMinimal ? 600 : 700;
+  const trackingEm = isMinimal
+    ? TRACKING_EM.headingMinimal
+    : template.headingStyle === "underline"
+      ? TRACKING_EM.headingUnderline
+      : template.headingStyle === "filled"
+        ? TRACKING_EM.headingFilled
+        : TRACKING_EM.headingBorder;
+  // charSpace is in pt and scales with the drawn size: em × fs_pt.
+  const charSpace = trackingEm * fontSize;
+  const baselineOff = anchorPt(
+    strutPx,
+    fsPx,
+    styleRatio(ctx, { weight: headingWeight, italic: false, fsPx, strutPx })
+  );
 
   switch (template.headingStyle) {
     case "underline": {
-      setFont(ctx, "bold", fontSize);
+      setFont(ctx, headingFont, fontSize);
       setText(ctx, primary);
-      doc.text(text, pageMargin, y + baselineOff);
+      doc.text(text, pageMargin, y + baselineOff, { charSpace });
       setStroke(ctx, accent);
       doc.setLineWidth(1.5);
       // borderBottom sits below paddingBottom 4px → strut + 4px.
       doc.line(pageMargin, y + px2pt(strutPx + 4), pageMargin + contentWidth, y + px2pt(strutPx + 4));
       doc.setLineWidth(0.2);
-      // Box: strut + paddingBottom 4 + border 2, plus mb-3 (12px).
-      return y + px2pt(strutPx + 4 + 2 + 12);
+      // Box: strut + paddingBottom 4 + border 2. The mb-3 gap and the rest
+      // of the flow come from the shared plan (block.gapAfterPx).
+      break;
     }
     case "border": {
-      setFont(ctx, "bold", fontSize);
+      setFont(ctx, headingFont, fontSize);
       setText(ctx, primary);
       setStroke(ctx, accent);
       doc.setLineWidth(2.25);
       // borderLeft spans the h2's full content box (strut height).
       doc.line(pageMargin, y, pageMargin, y + px2pt(strutPx));
       doc.setLineWidth(0.2);
-      doc.text(text, pageMargin + px2pt(13), y + baselineOff); // border 3px + padding 10px
-      return y + px2pt(strutPx + 12); // + mb-3
+      doc.text(text, pageMargin + px2pt(13), y + baselineOff, { charSpace }); // border 3px + padding 10px
+      break;
     }
     case "filled": {
-      setFont(ctx, "bold", fontSize);
-      const textWidth = doc.getTextWidth(text);
+      setFont(ctx, headingFont, fontSize);
+      // getTextWidth excludes charSpace — the box must cover the tracked
+      // width too (every glyph advances by Tc, including the last).
+      const textWidth =
+        doc.getTextWidth(text) + charSpace * text.length;
       const padX = px2pt(12); // px-3
       const padYpx = 6;       // py-1.5
       const boxW = textWidth + padX * 2;
@@ -593,24 +757,23 @@ function renderHeading(
       roundedRect(doc, pageMargin, y, boxW, boxH, borderRadius, "F");
       const [wr, wg, wb] = readableOn(accent);
       doc.setTextColor(wr, wg, wb);
-      doc.text(text, pageMargin + padX, y + px2pt(padYpx) + baselineOff);
-      return y + boxH + px2pt(12); // + mb-3
+      doc.text(text, pageMargin + padX, y + px2pt(padYpx) + baselineOff, { charSpace });
+      break;
     }
     case "minimal": {
-      // fs 16px → strut 24px (16 × 1.5); mb-2 = 8px.
-      const minPt = fitPt(px2pt(16), 0);
-      setFont(ctx, "bold", minPt);
+      // fs 16px base → strut 24px (16 × 1.5); mb-2 = 8px.
+      setFont(ctx, headingFont, fontSize);
       setText(ctx, primary);
-      doc.text(text, pageMargin, y + anchorPt(24, 16, ratio), { charSpace: 1.2 });
-      return y + px2pt(24 + 8);
+      doc.text(text, pageMargin, y + baselineOff, { charSpace });
+      break;
     }
     default: {
       // Bare preflight h2: inherits 14px, strut 21px, no margin (dead code
       // for all shipped templates — every template sets a headingStyle).
       setFont(ctx, "bold", fontSize);
       setText(ctx, primary);
-      doc.text(text, pageMargin, y + anchorPt(21, 14, ratio));
-      return y + px2pt(21);
+      doc.text(text, pageMargin, y + anchorPt(21, 14, ctx.baselineRatio));
+      break;
     }
   }
 }
@@ -652,8 +815,19 @@ function renderEntry(
   const strutTpt = px2pt(strutTpx);                   // title rows
   const strutBpt = px2pt(BODY_STRUT_PX);              // org/desc rows (fixed 20px)
   const bodyFactor = strutBpt / bodyFsPt;             // jsPDF array leading = 20px/14px
-  const anchorT = anchorPt(strutTpx, TITLE_FS_PX, ctx.baselineRatio);
-  const anchorB = anchorPt(BODY_STRUT_PX, 14, ctx.baselineRatio);
+  // Preview row weights: the title span is `font-semibold` (600), org/desc
+  // are `text-sm italic` (400 italic) — the anchors must use each style's
+  // own engine metrics (styleRatio).
+  const anchorT = anchorPt(
+    strutTpx,
+    TITLE_FS_PX,
+    styleRatio(ctx, { weight: 600, italic: false, fsPx: TITLE_FS_PX, strutPx: strutTpx })
+  );
+  const anchorB = anchorPt(
+    BODY_STRUT_PX,
+    14,
+    styleRatio(ctx, { weight: 400, italic: true, fsPx: 14, strutPx: BODY_STRUT_PX })
+  );
 
   // Free-text year (e.g. "2017-2021") wins over the int year column
   const yearText = sanitizeText(
@@ -666,7 +840,10 @@ function renderEntry(
 
   if (title) {
     // Year reserves right-edge width in BOTH placements (it sits on the
-    // baseline row of the title).
+    // baseline row of the title). jsPDF's getTextWidth scales with the
+    // ACTIVE font size — set the title font first so render and model
+    // measure the same reserve (measureEntry's convention).
+    setFont(ctx, "semibold", titleFsPt);
     const yearW = yearText ? doc.getTextWidth(yearText) + px2pt(12) : 0;
 
     if (ctx.inlineDesc && description) {
@@ -677,18 +854,28 @@ function renderEntry(
       // text-sm desc span (14px).
       const combo = `${title} ${ctx.descSeparator} ${description}`;
       const sepW = doc.getTextWidth(` ${ctx.descSeparator} `);
-      setFont(ctx, "bold", titleFsPt);
+      setFont(ctx, "semibold", titleFsPt);
       const titleW = doc.getTextWidth(title);
       setFont(ctx, "italic", bodyFsPt);
       const comboLines = wrapText(doc, combo, contentWidth - yearW);
       const strutIpx = Math.max(BODY_STRUT_PX, TITLE_FS_PX * P);
       const strutIpt = px2pt(strutIpx);
       const factorI = strutIpt / bodyFsPt;
-      const anchorI = anchorPt(strutIpx, strutTpx >= BODY_STRUT_PX ? TITLE_FS_PX : 14, ctx.baselineRatio);
+      const anchorOwnerFs = strutTpx >= BODY_STRUT_PX ? TITLE_FS_PX : 14;
+      const anchorI = anchorPt(
+        strutIpx,
+        anchorOwnerFs,
+        styleRatio(ctx, {
+          weight: anchorOwnerFs === TITLE_FS_PX ? 600 : 400,
+          italic: anchorOwnerFs === 14,
+          fsPx: anchorOwnerFs,
+          strutPx: strutIpx,
+        })
+      );
       const wrapped = comboLines.length > 1;
 
       // Line 0: title + separator + description tail, baseline = top + anchor.
-      setFont(ctx, "bold", titleFsPt);
+      setFont(ctx, "semibold", titleFsPt);
       setText(ctx, primary);
       doc.text(title, pageMargin, top + anchorI);
       setFont(ctx, "italic", bodyFsPt);
@@ -708,14 +895,14 @@ function renderEntry(
       }
 
       if (yearText) {
-        setFont(ctx, "normal", yearFsPt);
+        setFont(ctx, "medium", yearFsPt);
         setText(ctx, ctx.mutedColor);
         doc.text(yearText, pageMargin + contentWidth, top + anchorI, { align: "right" });
       }
 
       top += comboLines.length * strutIpt;
     } else {
-      setFont(ctx, "bold", titleFsPt);
+      setFont(ctx, "semibold", titleFsPt);
       setText(ctx, primary);
       const titleMaxWidth = contentWidth - yearW;
       const titleLines = doc.splitTextToSize(title, titleMaxWidth) as string[];
@@ -723,7 +910,7 @@ function renderEntry(
       doc.text(titleLines, pageMargin, top + anchorT, { lineHeightFactor: P });
 
       if (yearText) {
-        setFont(ctx, "normal", yearFsPt);
+        setFont(ctx, "medium", yearFsPt);
         setText(ctx, ctx.mutedColor);
         // Baseline-aligned in the title row (items-baseline in the preview).
         doc.text(yearText, pageMargin + contentWidth, top + anchorT, { align: "right" });
@@ -763,117 +950,17 @@ function renderEntry(
     top += descLines.length * strutBpt;
   }
 
-  top += px2pt(spacing.item);
+  // Returns the next row-block top INSIDE the entry: the ink-box advance
+  // only — every trailing gap belongs to the shared cv-flow-layout plan
+  // (block.gapAfterPx), never to this renderer.
   return top;
-}
-
-function renderSection(
-  ctx: RenderContext,
-  section: SectionWithEntries,
-  y: number
-): number {
-  const { spacing, template, pageMargin, contentWidth } = ctx;
-
-  const layout = section.layout_config as Record<string, unknown>;
-  const twoCol =
-    layout?.columns === "two" ? true :
-    layout?.columns === "one" ? false :
-    template.twoColumnDefault;
-
-  // Continuation of a section split across pages: entries only, no heading.
-  // A continuation group is always the first group on its page (flow order:
-  // the rows that broke onto the new page come first), so start exactly at
-  // pageTop — subtracting a "tight gap" here pushed the first line ~7.5pt
-  // above the top margin (ink yMin 20.7pt vs margin 36pt in bbox audits).
-  const isContinuation = (section as SectionWithEntries & { isContinuation?: boolean }).isContinuation === true;
-  if (!isContinuation) {
-    // Active-language section title: translated title (layout_config
-    // .sectionTitleTranslations[activeLang]) wins when non-empty, otherwise
-    // the original section title.
-    const titleMap = (section.layout_config as Record<string, unknown> | null)
-      ?.sectionTitleTranslations as Record<string, string> | undefined;
-    const sectionTitle =
-      (titleMap && titleMap[ctx.activeLang]) || sanitizeText(section.title);
-    y = renderHeading(ctx, sectionTitle, y);
-  }
-
-  if (twoCol && section.entries.length > 1) {
-    const colGap = px2pt(spacing.item * 4);
-    const colWidth = (contentWidth - colGap) / 2;
-
-    // Split-block metadata: flush() recorded the exact per-column lists per
-    // page chunk (twocolChunks). Prefer that; fall back to the classic
-    // sequential halves when absent (whole section on one page, no split).
-    // Columns are INDEPENDENT STACKS, not a strict grid: on a chunk the two
-    // sides end at different heights, and the section flows to the lower
-    // bottom instead of re-aligning horizontal rows.
-    const meta = section as SectionWithEntries & {
-      twocolChunks?: Array<{
-        left: SectionWithEntries["entries"][0][];
-        right: SectionWithEntries["entries"][0][];
-      }>;
-    };
-    const chunksMeta = meta.twocolChunks;
-    if (chunksMeta && chunksMeta.length > 0) {
-      const ctxCol: RenderContext = { ...ctx, contentWidth: colWidth };
-      const ctxCol2: RenderContext = {
-        ...ctx,
-        contentWidth: colWidth,
-        pageMargin: pageMargin + colWidth + colGap,
-      };
-      for (const chunk of chunksMeta) {
-        let yL = y;
-        for (const entry of chunk.left) yL = renderEntry(ctxCol, entry, yL);
-        let yR = y;
-        for (const entry of chunk.right) yR = renderEntry(ctxCol2, entry, yR);
-        // Section tail: continue from the TALLER column bottom so the
-        // section gap after the last chunk matches the classic layout.
-        y = Math.max(yL, yR);
-      }
-    } else {
-      const mid = Math.ceil(section.entries.length / 2);
-      const col1 = section.entries.slice(0, mid);
-      const col2 = section.entries.slice(mid);
-
-      const yStart = y;
-      const ctxCol1: RenderContext = { ...ctx, contentWidth: colWidth };
-      for (const entry of col1) {
-        y = renderEntry(ctxCol1, entry, y);
-      }
-      const yAfterCol1 = y;
-
-      y = yStart;
-      const ctxCol2: RenderContext = {
-        ...ctx,
-        contentWidth: colWidth,
-        pageMargin: pageMargin + colWidth + colGap,
-      };
-      for (const entry of col2) {
-        y = renderEntry(ctxCol2, entry, y);
-      }
-      y = Math.max(y, yAfterCol1);
-    }
-  } else {
-    for (const entry of section.entries) {
-      y = renderEntry(ctx, entry, y);
-    }
-  }
-
-  // Continuations (rows flowed from the previous page) keep a tight gap;
-  // real section ends keep the full section gap.
-  if (!isContinuation) {
-    y += px2pt(spacing.section);
-  } else {
-    y += px2pt(spacing.item) + px2pt(2);
-  }
-  return y;
 }
 
 async function renderProfileHeader(
   ctx: RenderContext,
   data: PdfCVData
 ): Promise<number> {
-  const { doc, accent, primary, spacing, pageMargin, contentWidth } = ctx;
+  const { doc, accent, primary, pageMargin, contentWidth } = ctx;
   const name = sanitizeText(data.profileName);
   const title = sanitizeText(data.profileTitle);
   if (!name && !title && !data.profilePicture) return pageMargin;
@@ -904,468 +991,312 @@ async function renderProfileHeader(
       setText(ctx, primary);
       // Top-aligned with the photo (mirrors the preview's items-start):
       // name baseline sits one ascent (21pt × ~0.79) below the photo top —
-      // no vertical-centering offset, no extra line.
-      doc.text(name, textX, y + 16.5);
+      // no vertical-centering offset, no extra line. The h1's CSS
+      // letter-spacing −0.02em applies here too (TRACKING_EM.name).
+      doc.text(name, textX, y + 16.5, { charSpace: TRACKING_EM.name * px2pt(28) });
     }
 
     if (title) {
-      setFont(ctx, "normal", px2pt(14));
+      setFont(ctx, "medium", px2pt(14));
       setText(ctx, ctx.subtitle);
       // Directly under the name with the 4px margin from the preview
       // (name ascent 16.5 + 3pt margin + title ascent ≈ 27.5); when there
       // is no name, the title takes the top slot at its own ascent (~10.5).
       const titleY = name ? y + 27.5 : y + 10.5;
-      doc.text(title.toUpperCase(), textX, titleY);
+      // The subtitle div: fontWeight 500 + letterSpacing 0.1em (preview CSS).
+      doc.text(title.toUpperCase(), textX, titleY, { charSpace: TRACKING_EM.subtitle * px2pt(14) });
     }
 
-    // Photo header advance: photo + ONE section gap — no divider line, no
-    // second gap (mirrors the preview's photo row + marginBottom).
-    y += photoSize + px2pt(spacing.section);
+    // The header's advance (photo box + ONE section gap) is the shared
+    // plan's header block — this renderer only paints; the walk positions
+    // the next block from the plan.
     return y;
   }
-  {
-    // No-photo branch: strut box model (matches profileHeaderHeightPt).
-    // Name h1: 28px, lh 1.2 → strut 33.6px, mb 4px; title div: 14px strut 21px
-    // (preflight). Baseline anchors mirror the DOM struts; TOP-aligned blocks
-    // via strut sums (no vertical centering).
-    const hasName = Boolean(name);
-    const hasTitle = Boolean(title);
-    if (name) {
-      setFont(ctx, "bold", px2pt(28)); // 1.75rem
-      setText(ctx, primary);
-      doc.text(name, pageMargin + contentWidth / 2, y + anchorPt(33.6, 28, ctx.baselineRatio), { align: "center" });
-    }
-    if (title) {
-      setFont(ctx, "normal", px2pt(14));
-      setText(ctx, ctx.subtitle);
-      // Title block top = name strut + mb-4px (0 with no name).
-      const titleTop = y + px2pt(hasName ? 33.6 + 4 : 0);
-      doc.text(title.toUpperCase(), pageMargin + contentWidth / 2, titleTop + anchorPt(HEADER_TITLE_STRUT_PX, 14, ctx.baselineRatio), { align: "center" });
-    }
-    // Block = 33.6 + 4 + 21 (both) — identical to profileHeaderHeightPt.
-    const blockPx = hasName && hasTitle ? 33.6 + 4 + HEADER_TITLE_STRUT_PX : hasName ? 33.6 : hasTitle ? HEADER_TITLE_STRUT_PX : 0;
-    y += px2pt(blockPx) + px2pt(spacing.section);
+
+  // No-photo branch: strut box model (the shared plan's header block owns
+  // the advance — 33.6 + 4 + 21 px box + ONE section gap).
+  // Name h1: 28px, lh 1.2 → strut 33.6px, mb 4px, letterSpacing −0.02em;
+  // title div: 14px fontWeight 500, letterSpacing 0.1em, strut 21px
+  // (preflight). Baseline anchors mirror the DOM struts via each style's
+  // own probed engine metrics; TOP-aligned blocks via strut sums.
+  const hasName = Boolean(name);
+  if (name) {
+    setFont(ctx, "bold", px2pt(28)); // 1.75rem
+    setText(ctx, primary);
+    doc.text(name, pageMargin + contentWidth / 2, y + anchorPt(33.6, 28, styleRatio(ctx, { weight: 700, italic: false, fsPx: 28, strutPx: 33.6 })), {
+      align: "center",
+      charSpace: TRACKING_EM.name * px2pt(28),
+    });
   }
-
-  // Divider line below header (no-photo layout only) — 1px CSS border = 0.75pt
-  setStroke(ctx, ctx.palette.surface);
-  doc.setLineWidth(0.75);
-  doc.line(pageMargin, y, pageMargin + contentWidth, y);
-  doc.setLineWidth(0.2);
-  y += px2pt(spacing.section);
-
+  if (title) {
+    setFont(ctx, "medium", px2pt(14));
+    setText(ctx, ctx.subtitle);
+    // Title block top = name strut + mb-4px (0 with no name).
+    const titleTop = y + px2pt(hasName ? 33.6 + 4 : 0);
+    doc.text(title.toUpperCase(), pageMargin + contentWidth / 2, titleTop + anchorPt(HEADER_TITLE_STRUT_PX, 14, styleRatio(ctx, { weight: 500, italic: false, fsPx: 14, strutPx: HEADER_TITLE_STRUT_PX })), {
+      align: "center",
+      charSpace: TRACKING_EM.subtitle * px2pt(14),
+    });
+  }
+  // No divider, no second section gap: the preview's no-photo header is the
+  // text block + ONE marginBottom: spacing.section — its intended divider is
+  // a zero-width flex child that never paints (pixel-verified,
+  // .plan/cv-parity/REPORT.md §3: the PDF's y=126 hairline had no preview
+  // counterpart). The advance (text-block box + ONE section gap) is the
+  // shared plan's header block — render and pagination cannot drift.
   return y;
 }
 
+// ─── End-of-CV contact block (bottom margin band, OUTSIDE the flow) ──────────
 
-// ─── Flow pagination ─────────────────────────────────────────────────────────
-//
-// Content flows freely: every heading/entry/row is measured and placed on the
-// current page while it fits; a page break happens ONLY when the next item
-// genuinely doesn't fit. The user controls forced breaks with a per-section
-// "page break before" checkbox (layout_config.page_break_before) — the system
-// never inserts judgment-based breaks of its own. A section may continue on
-// the next page (entries only, no repeated heading).
-
-interface FlowItem {
-  kind: "heading" | "entry" | "twocol" | "twocolChunk";
-  section: SectionWithEntries;
-  entry?: SectionWithEntries["entries"][0];
-  /** Independent-column page chunk: entries placed side by side, stacks not row-aligned */
-  chunk?: {
-    left: SectionWithEntries["entries"][0][];
-    right: SectionWithEntries["entries"][0][];
-  };
-}
-
-/** Per-style heading advance in pt — MUST equal renderHeading's return
- *  advance (block-top flow: the return IS the next item's box top).
- *  Headings strut at fontSize × 1.5 (preflight, preset-independent):
- *  18px base → strut 27px; h2 margins: mb-3 = 12px (mb-2 = 8px for minimal).
- *  underline: 27 + paddingBottom 4 + border 2 + mb-3 = 33.75pt
- *  border:    27 + mb-3                    = 29.25pt
- *  filled:    box(27 + 2×py6) + mb-3       = 33.75pt
- *  minimal:   strut 24 (fs16 × 1.5) + mb-2 = 24pt
- *  (Auto-shrink scales the strut with fontSize; renderHeading recomputes it
- *  from the same formula, so the constants here assume the un-shrunk base.) */
-function headingAdvancePt(headingStyle: string): number {
-  switch (headingStyle) {
-    case "filled":
-      return px2pt(27 + 6 * 2 + 12);
-    case "minimal":
-      return px2pt(24 + 8);
-    case "underline":
-      return px2pt(27 + 4 + 2 + 12);
-    case "border":
-      return px2pt(27 + 12);
-    default:
-      return px2pt(21);
-  }
-}
-
-/** Exact height the profile header will consume on page 1 — MUST mirror
- *  renderProfileHeader. Strut box model, probe-verified:
- *  PHOTO branch: photo (96px) + ONE section gap — no divider, no second gap
- *  (name/title are TOP-aligned with the photo, so the 58.59px text block
- *  never exceeds the 96px photo).
- *  NO-photo branch: name h1 (28px, lh 1.2 → strut 33.6px, mb 4px) + title div
- *  (14px, preflight lh 1.5 → strut 21px) = 58.59px block + section gap +
- *  divider (0.5pt) + section gap — the render's full advance. */
-function profileHeaderHeightPt(data: PdfCVData, spacingSection: number): number {
-  const hasNameOrTitle = Boolean(sanitizeText(data.profileName) || sanitizeText(data.profileTitle));
-  const hasPhoto = Boolean(data.profilePicture);
-  if (!hasNameOrTitle && !hasPhoto) return 0;
-  if (hasPhoto) {
-    return px2pt(96) + px2pt(spacingSection);
-  }
-  // Name+title: 33.6 + 4 + 21 = 58.59px. Title-only: 21px. Name-only: 33.6.
-  const hasName = Boolean(sanitizeText(data.profileName));
-  const hasTitle = Boolean(sanitizeText(data.profileTitle));
-  const blockPx = hasName && hasTitle ? 33.6 + 4 + 21 : hasName ? 33.6 : hasTitle ? 21 : 0;
-  // The header's divider is a real CSS border (1px = 0.75pt): charge it in
-  // BOTH measure and render (renders must advance past the hairline too).
-  return px2pt(blockPx) + px2pt(spacingSection) * 2 + 0.75;
-}
-
-function flowLayout(
+/**
+ * Render the end-of-CV contact block (phone / e-mail) in the BOTTOM MARGIN
+ * BAND of the doc's CURRENT page — outside the flow by construction: it is
+ * never part of the shared plan, never added to any flow height, and cannot
+ * shift a row or trigger a page break. Geometry mirrors the preview's
+ * absolutely-positioned band block exactly (cv-preview.tsx):
+ *   - band top = the content box BOTTOM (pageMargin + content-box height):
+ *     the same top-anchored px2pt chain every flow row uses. NOT
+ *     pageHeightPt − pageMargin — that differs by the A4 rounding
+ *     (1123 px → 842.25 pt vs the real 841.89 pt page ≈ 0.5 px) and would
+ *     land the band off the preview grid.
+ *   - the block is vertically centred in the pageMargin-tall band
+ *     (offset from the band top, computed from the enabled line count —
+ *     the preview computes the identical offset).
+ *   - 12 px rows at single line-height (CONTACT_LINE_PX), phone above
+ *     e-mail, muted colour, no tracking.
+ *   - horizontally aligned like the profile header: centred when the
+ *     header renders without a photo, left with one (centerX).
+ * The baseline anchor is the same strut formula as every other row —
+ * anchor triple 400|12|12, probed per style in the browser (probeStyleRatios)
+ * so the in-browser export places the band baselines exactly where the DOM
+ * puts them.
+ */
+function renderContactBlock(
   ctx: RenderContext,
-  sections: SectionWithEntries[],
-  headerHeightPt: number
-): SectionWithEntries[][] {
-  const { doc, spacing, template, contentWidth, activeLang, pageMargin } = ctx;
-  const pageTop = pageMargin;
-  // The renderer can never place ink below pageHeightPt - pageMargin, so use
-  // the same bound for the break decision (an extra arbitrary breathing-room
-  // offset here breaks pages earlier than the render needs).
-  const bottomLimit = ctx.pageHeightPt - pageMargin;
+  lines: ContactLine[],
+  marginPx: number,
+  centerX: boolean
+): void {
+  const { doc } = ctx;
+  const fsPx = CONTACT_LINE_PX;
+  const strutPx = CONTACT_LINE_PX; // single line-height
+  const fsPt = px2pt(fsPx);
+  const strutPt = px2pt(strutPx);
+  const anchor = anchorPt(
+    strutPx,
+    fsPx,
+    styleRatio(ctx, { weight: 400, italic: false, fsPx, strutPx })
+  );
+  const bandTopPt = ctx.pageMargin + ctx.contentHeightPt;
+  const blockHPx = lines.length * strutPx;
+  const topPt = bandTopPt + px2pt(Math.max(0, (marginPx - blockHPx) / 2));
+  setFont(ctx, "normal", fsPt);
+  setText(ctx, ctx.mutedColor);
+  const x = centerX ? ctx.pageMargin + ctx.contentWidth / 2 : ctx.pageMargin;
+  let yPt = topPt;
+  for (const l of lines) {
+    // Wrap at the content box width like the preview's block div (width =
+    // content box): a pathological value wraps DOWN from the same anchor,
+    // so the first line's top keeps its parity for any input.
+    const segs = wrapText(doc, l.text, ctx.contentWidth);
+    for (const seg of segs) {
+      doc.text(seg, x, yPt + anchor, centerX ? { align: "center" } : undefined);
+      yPt += strutPt;
+    }
+  }
+}
 
-  // ── Measure every flow item ──────────────────────────────────────────────
-  // CRITICAL: measurement MUST use the same fonts/sizes that renderEntry will
-  // use (embedded per-style families at bold 15.2pt / body 14pt), or wrap
-  // counts drift and the layout breaks pages earlier than the render needs —
-  // the visible symptom is a nearly-empty extra last page.
-  interface Measured {
-    item: FlowItem;
-    height: number;
+
+// ─── Shared flow plan: measurement + painting ──────────────────────────────────
+//
+// src/lib/cv-flow-layout.ts owns the flow structure, the gap arithmetic, the
+// heading/header box constants and the pagination rules. What stays here is
+// per-engine ONLY: measuring entry ink boxes and heading font sizes with
+// jsPDF's embedded fonts (the strut row model — see the constants above and
+// the cvcreator skill's dom-strut-parity reference), and painting the placed
+// plan through px2pt().
+
+/** Everything exportToPdf and the harnesses need to measure flow text with
+ *  jsPDF exactly the way the renderer draws it (same fonts, sizes, wrap
+ *  widths). */
+export interface PdfMeasureSetup {
+  fontStyles?: Record<FontStyle, string>;
+  embedded: boolean;
+  fontFam: string;
+  /** The CSS font stack of the CV's font (design-constants getFontStack) —
+   *  the exporter probes per-style baseline anchors with it. */
+  fontStack: string;
+  baselineRatio: number;
+  /** Per-language FlowMeasure (strut sums × jsPDF wrap counts, CSS px). */
+  makeMeasure(activeLang: string): FlowMeasure;
+}
+
+export async function setupPdfMeasure(
+  doc: jsPDF,
+  design: Partial<CVDesign>
+): Promise<PdfMeasureSetup> {
+  const template = getTemplate(design.template ?? "clean");
+  const fontValue = design.font_family ?? template.defaultFont;
+  const fontStack = getFontStack(fontValue);
+  const serifKeywords = ["serif", "Georgia", "Garamond", "Lora", "Merriweather", "Crimson", "Playfair"];
+  const fontFam = serifKeywords.some((kw) => fontStack.includes(kw))
+    ? "times"
+    : "helvetica";
+  const spacing = {
+    ...SPACING_VALUES[design.spacing ?? "normal"],
+    // User line-height preset overrides the spacing preset's default
+    lineHeight: getLineHeightValue(design, design.spacing ?? "normal"),
+  };
+  const cfg = (design.custom_config ?? {}) as Record<string, unknown>;
+  const inlineDesc = ((cfg.descriptionPlacement as string) ?? "below") === "inline";
+  const descSeparator = ((cfg.descriptionSeparator as string) ?? "—") || "—";
+
+  // Fonts: try to embed the real typeface (vector TTF from the Fontsource
+  // build in /public/fonts/cv, cached by the browser after first export);
+  // fall back to jsPDF's built-ins when unavailable.
+  let fontStyles: Record<FontStyle, string> | undefined;
+  let embedded = false;
+  try {
+    const registration = await registerFontFamily(doc, fontValue);
+    if (registration) {
+      fontStyles = registration.styleFam;
+      embedded = registration.hasItalic;
+    }
+  } catch {
+    // CDN unreachable / offline — built-ins still produce a clean PDF
   }
 
-  const measureEntry = (
-    entry: SectionWithEntries["entries"][0],
-    width: number
-  ): number => {
-    const translation = entry.translations.find((t) => t.language === activeLang);
-    const title = sanitizeText(translation?.title ?? "");
-    const organization = sanitizeText(translation?.organization ?? "");
-    const description = sanitizeText(translation?.description ?? "");
-    // Strut constants — identical to renderEntry (single source of truth: the
-    // dom-strut-parity spec). Title rows 15.2px × preset; org/desc rows 20px
-    // FIXED (text-sm); inline combo rows max(20, 15.2×preset); desc mt-1 4px.
-    const P = spacing.lineHeight;
-    const strutTpt = px2pt(TITLE_FS_PX * P);
-    const strutBpt = px2pt(BODY_STRUT_PX);
-    let h = 0;
-    // MIRRORS renderEntry exactly — every branch here has a twin there.
-    if (title) {
-      setFont(ctx, "bold", px2pt(TITLE_FS_PX));
-      // Reserve space for the right-aligned year like the real renderer does
-      // (free-text year e.g. "2017-2021" wins over the int year column).
-      const yearText =
-        ((entry.data as { year_text?: string } | undefined)?.year_text ?? "") ||
-        (entry.year != null && entry.year !== 0 ? String(entry.year) : "");
-      const yearW = yearText ? doc.getTextWidth(yearText) + px2pt(12) : 0;
+  // Baseline anchor ratio for the strut model: measure the real webfont's
+  // fontBoundingBox metrics when a canvas exists (browser), fall back to
+  // the Inter-like 0.363 under Node/harnesses.
+  const baselineRatio = computeBaselineRatio(fontStack);
 
-      if (ctx.inlineDesc && description) {
-        // Inline placement: combo wraps at contentWidth − yearW; every combo
-        // line struts at max(20, 15.2×P) px (nested desc span raises the
-        // line box — DOM-verified).
-        const combo = `${title} ${ctx.descSeparator} ${description}`;
-        setFont(ctx, "italic", px2pt(14));
-        const comboLines = wrapText(doc, combo, Math.max(60, width - yearW));
-        h += comboLines.length * px2pt(Math.max(BODY_STRUT_PX, TITLE_FS_PX * P));
+  const makeMeasure = (activeLang: string): FlowMeasure => {
+    const setMFont = (style: FontStyle, sizePt: number): void => {
+      const fam = embedded ? fontStyles?.[style] : undefined;
+      if (fam) {
+        // Unique per-style families are registered with the single
+        // "normal" style (see registerFontFamily).
+        doc.setFont(fam, "normal");
       } else {
-        const lines = doc.splitTextToSize(title, Math.max(40, width - yearW)) as string[];
-        h += lines.length * strutTpt;
+        doc.setFont(fontFam, style);
       }
-    } else if (ctx.inlineDesc && description) {
-      // No title but inline description: it renders as a plain wrapped block
-      // at the full (indented) width — measure at the same width.
-      setFont(ctx, "italic", px2pt(14));
-      const lines = wrapText(doc, description, Math.max(40, width - CONT_INDENT_PT));
-      h += lines.length * strutBpt;
-    }
-    if (organization) {
-      // Continuation row: measured at the INDENTED width (renderEntry draws
-      // org lines at x + CONT_INDENT_PT with wrap width − indent). Rendered
-      // in BOTH placements — the preview always renders the org div.
-      setFont(ctx, "italic", px2pt(14));
-      const lines = doc.splitTextToSize(organization, Math.max(40, width - CONT_INDENT_PT)) as string[];
-      h += lines.length * strutBpt;
-    }
-    if (description && !ctx.inlineDesc) {
-      setFont(ctx, "italic", px2pt(14));
-      const lines = wrapText(doc, description, Math.max(40, width - CONT_INDENT_PT));
-      // mt-1 (4px) + 20px struts — no fontSize-derived line-height here
-      // (text-sm's 20px strut is preset-INDEPENDENT; DOM-probe verified).
-      h += px2pt(DESC_MARGIN_PX) + lines.length * strutBpt;
-    }
-    h += px2pt(spacing.item);
-    return h;
+      doc.setFontSize(sizePt);
+    };
+    return {
+      // Strut sums × wrap counts — the exporter's model of the DOM entry
+      // box (probe-verified: title rows 15.2×preset, org/desc rows 20px
+      // FIXED, inline combo max(20, 15.2×preset), desc mt-1 4px). NO gap
+      // arithmetic here — cv-flow-layout owns every gap.
+      entryBoxPx(entry, widthPx) {
+        const widthPt = px2pt(widthPx);
+        const translation = entry.translations.find(
+          (t) => t.language === activeLang
+        );
+        const title = sanitizeText(translation?.title ?? "");
+        const organization = sanitizeText(translation?.organization ?? "");
+        const description = sanitizeText(translation?.description ?? "");
+        const P = spacing.lineHeight;
+        const strutTpx = TITLE_FS_PX * P;
+        let box = 0;
+        if (title) {
+          setMFont("semibold", px2pt(TITLE_FS_PX));
+          // Free-text year (e.g. "2017-2021") wins over the int year
+          // column; the year reserves right-edge width like the renderer.
+          const yearText = sanitizeText(
+            (((entry.data as { year_text?: string } | undefined)?.year_text ?? "") as string) ||
+              (entry.year != null && entry.year !== 0 ? String(entry.year) : "")
+          );
+          const yearW = yearText ? doc.getTextWidth(yearText) + px2pt(12) : 0;
+
+          if (inlineDesc && description) {
+            // Inline placement: combo wraps at width − yearW; every combo
+            // line struts at max(20, 15.2×P) px (the nested desc span raises
+            // the line box — DOM-verified).
+            const combo = `${title} ${descSeparator} ${description}`;
+            setMFont("italic", px2pt(14));
+            const comboLines = wrapText(doc, combo, Math.max(60, widthPt - yearW));
+            box += comboLines.length * Math.max(BODY_STRUT_PX, TITLE_FS_PX * P);
+          } else {
+            const lines = doc.splitTextToSize(
+              title,
+              Math.max(40, widthPt - yearW)
+            ) as string[];
+            box += lines.length * strutTpx;
+          }
+        } else if (inlineDesc && description) {
+          // No title but inline description: a plain wrapped block at the
+          // (indented) width.
+          setMFont("italic", px2pt(14));
+          const lines = wrapText(doc, description, Math.max(40, widthPt - CONT_INDENT_PT));
+          box += lines.length * BODY_STRUT_PX;
+        }
+        if (organization) {
+          // Continuation row: measured at the INDENTED width (renderEntry
+          // draws org lines at x + CONT_INDENT_PT). Rendered in BOTH
+          // placements — the preview always renders the org div.
+          setMFont("italic", px2pt(14));
+          const lines = doc.splitTextToSize(
+            organization,
+            Math.max(40, widthPt - CONT_INDENT_PT)
+          ) as string[];
+          box += lines.length * BODY_STRUT_PX;
+        }
+        if (description && !inlineDesc) {
+          // mt-1 (4px) + 20px struts — text-sm's strut is preset-INDEPENDENT.
+          setMFont("italic", px2pt(14));
+          const lines = wrapText(doc, description, Math.max(40, widthPt - CONT_INDENT_PT));
+          box += DESC_MARGIN_PX + lines.length * BODY_STRUT_PX;
+        }
+        return box;
+      },
+      // Auto-shrink rule (the old renderHeading's fitPt, verbatim): measure
+      // the uppercased title with the BUILT-IN bold face and shrink when it
+      // would overflow the content box minus the style's horizontal chrome.
+      // Returns CSS px; cv-flow-layout turns the size into the heading box.
+      headingFontSizePx(title, basePx, padPx) {
+        const basePt = px2pt(basePx);
+        if (!title) return basePx;
+        doc.setFont(fontFam, "bold");
+        doc.setFontSize(basePt);
+        const sizeRatio = doc.getTextWidth(title.toUpperCase()) / (basePt || 1);
+        const avail = px2pt(contentBoxWidthPx(design)) - px2pt(padPx) * 2;
+        if (sizeRatio * basePt > avail && sizeRatio > 0) {
+          return Math.max(8, (basePt * avail) / (sizeRatio * basePt)) / 0.75;
+        }
+        return basePx;
+      },
+    };
   };
 
-  const measured: Measured[] = [];
+  return { fontStyles, embedded, fontFam, fontStack, baselineRatio, makeMeasure };
+}
 
-  for (const section of sections) {
-    const layout = section.layout_config as Record<string, unknown>;
-    const twoCol =
-      layout?.columns === "two" ? true :
-      layout?.columns === "one" ? false :
-      template.twoColumnDefault;
-
-    // Heading item = the heading's advance for this template's heading style
-    // PLUS the section's trailing gap (renderSection appends spacing.section
-    // after the body). The 18px-tall heading glyph extends UP from the
-    // baseline into the previous section's tail, so only the DOWNWARD
-    // advance is charged here. Empty sections render no tail.
-    const tail = px2pt(section.entries.length > 0 ? spacing.section : 0);
-    measured.push({
-      item: { kind: "heading", section },
-      height: headingAdvancePt(template.headingStyle) + tail,
-    });
-
-    if (twoCol && section.entries.length > 1) {
-      // Two-column: NO strict grid. Entries are dealt onto two independent
-      // column stacks (next entry → currently shorter stack), and the whole
-      // two-column block paginates in CHUNKS: whatever fits on the current
-      // page is placed side by side; each column's leftovers continue on the
-      // next page at a different entry count. Heights are measured per chunk
-      // as the taller stack — the same value the renderer produces when each
-      // column is a free-running stack and the section ends at the lower
-      // column's bottom.
-      const colGap = px2pt(spacing.item * 4);
-      const colWidth = (contentWidth - colGap) / 2;
-      // Sequential halves (unchanged from the classic layout): left column
-      // takes the first ⌈n/2⌉ entries, right the rest. Only the page-BREAK
-      // behavior changes — each column paginates independently below.
-      const half = Math.ceil(section.entries.length / 2);
-      const col1 = section.entries.slice(0, half);
-      const col2 = section.entries.slice(half);
-      // Raw heights (each includes its trailing item-gap, exactly what
-      // renderEntry advances per entry).
-      const h1 = col1.reduce((a, e) => a + measureEntry(e, colWidth), 0);
-      const h2 = col2.reduce((a, e) => a + measureEntry(e, colWidth), 0);
-      measured.push({
-        item: { kind: "twocol", section, chunk: { left: col1, right: col2 } },
-        height: Math.max(h1, h2, 0),
-      });
-    } else {
-      for (const entry of section.entries) {
-        measured.push({
-          item: { kind: "entry", section, entry },
-          height: measureEntry(entry, contentWidth),
-        });
-      }
-    }
-  }
-
-  // ── Distribute across pages ────────────────────────────────────────────────
-  // Pure flow: items fill the current page; a break happens only when the
-  // next item doesn't fit. A section's heading starts a new page only when
-  // the user set layout_config.page_break_before on that section.
-  //
-  // Two-column chunks split like everything else: the columns are independent
-  // stacks, so the split point differs per column — fill each column with its
-  // own prefix up to the free height, and let the non-aligned remainders
-  // continue on the next page (no row re-alignment).
-  const pages: SectionWithEntries[][] = [];
-  let pageItems: Measured[] = [];
-  let currentY = pageTop + headerHeightPt;
-  // Continuation-gap bookkeeping (see charge/arm sites in the loop below).
-  let contTailDue = 0;
-  let contTailSection: string | null = null;
-
-  const flush = (extraItems?: Measured[]) => {
-    if (pageItems.length === 0 && !(extraItems && extraItems.length > 0)) return;
-    // Convert flow items back into page section groups. Groups preserve
-    // original section order; a section split across pages appears on both.
-    // A group that doesn't contain the section's own heading flow item is a
-    // continuation: the renderer skips the heading for it.
-    const pageSections: SectionWithEntries[] = [];
-    const seen = new Map<
-      string,
-      { group: SectionWithEntries; hasHeading: boolean }
-    >();
-    const allItems = extraItems
-      ? [...pageItems, ...extraItems]
-      : pageItems;
-    for (const { item } of allItems) {
-      const s = item.section;
-      let rec = seen.get(s.id);
-      if (!rec) {
-        const group: SectionWithEntries = { ...s, entries: [] };
-        rec = { group, hasHeading: false };
-        seen.set(s.id, rec);
-        pageSections.push(group);
-      }
-      if (item.kind === "heading") {
-        rec.hasHeading = true;
-      }
-      if (item.entry) {
-        rec.group.entries.push(item.entry);
-      } else if ((item.kind === "twocol" || item.kind === "twocolChunk") && item.chunk) {
-        // Two-column chunk: ship the exact per-column lists on the group —
-        // the renderer stacks each column independently, non row-aligned.
-        const meta = rec.group as SectionWithEntries & {
-          twocolChunks?: Array<{ left: SectionWithEntries["entries"][0][]; right: SectionWithEntries["entries"][0][] }>;
-        };
-        if (!meta.twocolChunks) meta.twocolChunks = [];
-        meta.twocolChunks.push({ left: item.chunk.left, right: item.chunk.right });
-        rec.group.entries.push(...item.chunk.left, ...item.chunk.right);
-      }
-    }
-    // Mark continuation groups (no heading on this page) so the renderer
-    // knows not to repeat the heading.
-    for (const section of pageSections) {
-      const rec = seen.get(section.id)!;
-      if (!rec.hasHeading) {
-        (section as SectionWithEntries & { isContinuation?: boolean }).isContinuation =
-          true;
-      }
-    }
-    pages.push(pageSections);
-    pageItems = [];
+/** Paint one two-column chunk of the shared flow plan. The columns are
+ *  independent stacks starting at the chunk's block top; each entry advances
+ *  by its planned step (ink box + spacing.item — margins of flex items stay
+ *  INSIDE the column box, DOM-measured), so the render can never re-derive
+ *  a different step than the plan paginated with. */
+function renderChunk(ctx: RenderContext, chunk: FlowChunk, y: number): void {
+  const colGapPt = px2pt(ctx.spacing.item * 4);
+  const colWidthPt = (ctx.contentWidth - colGapPt) / 2;
+  const ctxL: RenderContext = { ...ctx, contentWidth: colWidthPt };
+  const ctxR: RenderContext = {
+    ...ctx,
+    contentWidth: colWidthPt,
+    pageMargin: ctx.pageMargin + colWidthPt + colGapPt,
   };
-
-  for (let i = 0; i < measured.length; i++) {
-    const m = measured[i];
-
-    // The renderer adds a tight continuation gap (item gap + 2px) after a
-    // split section's continuation rows before the next group on the same
-    // page (see renderSection). Mirror it in measurement: charge once, after
-    // the continuation's rows, before the first item of a different group.
-    if (
-      contTailDue > 0 &&
-      (m.item.section.id !== contTailSection ||
-        (m.item.kind !== "entry" && m.item.kind !== "twocolChunk"))
-    ) {
-      currentY += contTailDue;
-      contTailDue = 0;
-    }
-
-    // User-controlled break: this section was explicitly set to start on a
-    // fresh page (checkbox in the editor). Only applies at the section's
-    // heading, and never when the page is already empty.
-    if (
-      m.item.kind === "heading" &&
-      pageItems.length > 0 &&
-      ((m.item.section.layout_config as Record<string, unknown> | null)?.page_break_before === true)
-    ) {
-      flush();
-      currentY = pageTop;
-    }
-
-    // Pure flow (R2): everything fills the current page; break only when the
-    // next item genuinely doesn't fit. The previous item's trailing item-gap
-    // is charged in its measured height but is invisible when it ends the
-    // page (nothing follows it before the break) — waive it so knife-edge
-    // rows aren't pushed over by dead space.
-    if (currentY + m.height > bottomLimit && pageItems.length > 0) {
-      const prevHeight =
-        m.item.kind === "heading" || !measured[i - 1] ? 0 : px2pt(spacing.item);
-      if (currentY - prevHeight + m.height <= bottomLimit) {
-        currentY -= prevHeight;
-        const prevPlaced = pageItems[pageItems.length - 1];
-        // Waiver only applies to gap-only padding, never to real ink height:
-        // shrink the stored height too, so render's own advance matches.
-        if (prevPlaced) prevPlaced.height -= prevHeight;
-      } else {
-        // Split two-column chunks like a single long entry: each column is
-        // an independent stack, so fill per-column prefixes up to the free
-        // height and let the (different-length) remainders continue on the
-        // fresh page — no row re-alignment.
-        const twocolW = px2pt(spacing.item * 4);
-        const colW = (contentWidth - twocolW) / 2;
-        const EPS = 0.6; // pt tolerance for float drift in greedy fill
-        let placedL: SectionWithEntries["entries"] = [];
-        let placedR: SectionWithEntries["entries"] = [];
-        let restL: SectionWithEntries["entries"] = [];
-        let restR: SectionWithEntries["entries"] = [];
-        let splittable = false;
-        if ((m.item.kind === "twocol" || m.item.kind === "twocolChunk") && m.item.chunk) {
-          const free = bottomLimit - currentY;
-          let hL = 0;
-          let hR = 0;
-          for (const e of m.item.chunk.left) {
-            const h = measureEntry(e, colW);
-            if (hL + h <= free + EPS) {
-              placedL.push(e);
-              hL += h;
-            } else {
-              restL.push(e);
-            }
-          }
-          for (const e of m.item.chunk.right) {
-            const h = measureEntry(e, colW);
-            if (hR + h <= free + EPS) {
-              placedR.push(e);
-              hR += h;
-            } else {
-              restR.push(e);
-            }
-          }
-          splittable =
-            placedL.length + placedR.length > 0 &&
-            restL.length + restR.length > 0;
-        }
-        const sumH = (list: SectionWithEntries["entries"]) =>
-          list.reduce((a, e) => a + measureEntry(e, colW), 0);
-        if (splittable) {
-          // Page N: existing items + the per-column fitted prefixes.
-          const placed: Measured[] = [
-            {
-              item: {
-                kind: "twocolChunk",
-                section: m.item.section,
-                chunk: { left: placedL, right: placedR },
-              },
-              height: Math.max(sumH(placedL), sumH(placedR), 0),
-            },
-          ];
-          flush(placed);
-          // Fresh page: the independent remainders as a continuation chunk.
-          m.item.kind = "twocolChunk";
-          m.item.chunk = { left: restL, right: restR };
-          m.height = Math.max(sumH(restL), sumH(restR), 0);
-          currentY = pageTop;
-          // Continuation lands on a fresh page: arm the continuation tail.
-          contTailDue = px2pt(spacing.item) + px2pt(2);
-          contTailSection = m.item.section.id;
-          pageItems.push(m);
-          currentY += m.height;
-          continue;
-        }
-        // Generic break: flush and retry the whole item on the fresh page.
-        flush();
-        currentY = pageTop;
-        // Mid-section break: whatever lands on the fresh page is a
-        // continuation group — arm the continuation tail for the next group.
-        const prev = measured[i - 1]?.item;
-        if (
-          m.item.kind === "twocolChunk" ||
-          (prev &&
-            (prev.kind === "twocol" || prev.kind === "twocolChunk") &&
-            prev.section.id === m.item.section.id)
-        ) {
-          contTailDue = px2pt(spacing.item) + px2pt(2);
-          contTailSection = m.item.section.id;
-        }
-      }
-    }
-    pageItems.push(m);
-    currentY += m.height;
+  let yL = y;
+  for (const it of chunk.left) {
+    renderEntry(ctxL, it.entry, yL);
+    yL += px2pt(it.stepPx);
   }
-  flush();
-
-  return pages.length > 0 ? pages : [sections];
+  let yR = y;
+  for (const it of chunk.right) {
+    renderEntry(ctxR, it.entry, yR);
+    yR += px2pt(it.stepPx);
+  }
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -1424,13 +1355,12 @@ export async function exportToPdf(
 
   const design = data.design;
   const template = getTemplate(design.template ?? "clean");
-  // Global heading-style override (custom_config.headingStyle, "auto" =
-  // template default) takes precedence over the template's own style.
-  const headingStyleOverride = (design.custom_config?.headingStyle as string) ?? "auto";
-  const headingStyle = headingStyleOverride === "auto"
-    ? template.headingStyle
-    : (headingStyleOverride as TemplateConfig["headingStyle"]);
-  const effectiveTemplate: TemplateConfig = { ...template, headingStyle };
+  // Global heading-style override — resolved by the shared module (ONE
+  // owner: the preview's renderHeading resolves the same way).
+  const effectiveTemplate: TemplateConfig = {
+    ...template,
+    headingStyle: resolveHeadingStyle(design, template),
+  };
   const palette = getPalette(
     (design.custom_config?.paletteId as string) ?? template.defaultPalette
   );
@@ -1445,33 +1375,35 @@ export async function exportToPdf(
   const profileRim = (design.custom_config?.profileRim as boolean) ?? true;
   const profileRadius = (design.custom_config?.profileRadius as number) ?? 48;
   const profileImagePosition = (design.custom_config?.profileImagePosition as string) ?? "left";
-  const contentWidth = pageWidthPt - pageMargin * 2;
+  // Content box width from the shared module (px → pt): the preview's
+  // 794 − 2·margin px content box, NOT the PDF page's own pt width
+  // (595.28 − 72 = 523.28 vs 523.5 pt) — the ~0.22 pt difference moved
+  // wrapped rows and the right-aligned year edge off the preview grid.
+  const contentWidth = px2pt(contentBoxWidthPx(design));
+  // Content-box height in pt — the flow's top-anchored bound AND the top
+  // of the bottom margin band (the end-of-CV contact block draws from it).
+  const contentHeightPt = px2pt(contentBoxHeightPx(design));
+  // Whether the rendered header carries a photo: includePhoto=false strips
+  // it at export time — the same condition the preview's profilePicture
+  // prop applies (the editors pass includePhotoInPdf ? photo : null), so
+  // the header AND the contact block align the same way on both sides.
+  const hasPhoto =
+    options.includePhoto === false ? false : Boolean(data.profilePicture);
+  // End-of-CV contact lines (phone / e-mail, own checkbox each) — read
+  // ONCE from custom_config; drawn in the bottom margin band of every
+  // language block's LAST page, outside the flow.
+  const contactBlock = contactLines(design);
 
-  // Fonts: try to embed the real typeface (vector TTF from Fontsource CDN,
-  // cached by the browser after first export); fall back to built-ins.
-  const fontValue = design.font_family ?? template.defaultFont;
-  const fontStack = getFontStack(fontValue);
-  const serifKeywords = ["serif", "Georgia", "Garamond", "Lora", "Merriweather", "Crimson", "Playfair"];
-  const isSerif = serifKeywords.some((kw) => fontStack.includes(kw));
-  const fontFam = isSerif ? "times" : "helvetica";
-
-  // Baseline anchor ratio for the strut model. The preview DOM renders with
-  // the REAL webfont; measure its fontBoundingBox metrics the same way when
-  // running in a browser (canvas is available), fall back to 0.363 under Node.
-  const fontStackCss = getFontStack(fontValue);
-  const baselineRatio = computeBaselineRatio(fontStackCss);
-
-  let fontStyles: Record<FontStyle, string> | undefined;
-  let embedded = false;
-  try {
-    const registration = await registerFontFamily(doc, fontValue);
-    if (registration) {
-      fontStyles = registration.styleFam;
-      embedded = registration.hasItalic;
-    }
-  } catch {
-    // CDN unreachable / offline — built-ins still produce a clean PDF
-  }
+  // Fonts + the flow measurement setup: try to embed the real typeface
+  // (vector TTF from the Fontsource CDN, cached by the browser after first
+  // export); fall back to built-ins. setupPdfMeasure resolves the SAME
+  // fontFam/embedded/baselineRatio for the render context and hands out the
+  // per-language FlowMeasure the shared layout module consumes.
+  const setup = await setupPdfMeasure(doc, design);
+  const fontStyles = setup.fontStyles;
+  const embedded = setup.embedded;
+  const fontFam = setup.fontFam;
+  const baselineRatio = setup.baselineRatio;
 
   const ctx: RenderContext = {
     doc,
@@ -1496,6 +1428,7 @@ export async function exportToPdf(
     profileImagePosition,
     activeLang: data.activeLang,
     contentWidth,
+    contentHeightPt,
     pageHeightPt,
     pageWidthPt,
     fontFam,
@@ -1520,9 +1453,36 @@ export async function exportToPdf(
       : [{ code: data.activeLang, name: data.profileName, title: data.profileTitle }];
 
   let freshPageAvailable = true;
+
+  // ── Phase 1: per-language flow plans + the anchor triple set ───────────
+  // The per-style baseline anchors must be resolved BEFORE any page renders
+  // (the probe is async, the render walk is not). Heading triples depend on
+  // the auto-shrunk sizes the flow plan resolves, so collect plans first.
+  const triples = new Map<string, AnchorTriple>();
+  const addTriple = (t: AnchorTriple) => triples.set(anchorKey(t), t);
+  // Header (no-photo struts; the photo branch draws hard-coded baselines):
+  addTriple({ weight: 700, italic: false, fsPx: 28, strutPx: 33.6 }); // name h1
+  addTriple({ weight: 500, italic: false, fsPx: 14, strutPx: HEADER_TITLE_STRUT_PX }); // subtitle div
+  // End-of-CV contact block rows (12 px normal, single line-height):
+  addTriple({ weight: 400, italic: false, fsPx: CONTACT_LINE_PX, strutPx: CONTACT_LINE_PX });
+  // Entry rows (title span font-semibold 600; org/desc text-sm italic 400):
+  addTriple({ weight: 600, italic: false, fsPx: TITLE_FS_PX, strutPx: TITLE_FS_PX * spacing.lineHeight });
+  if (ctx.inlineDesc) {
+    const strutIpx = Math.max(BODY_STRUT_PX, TITLE_FS_PX * spacing.lineHeight);
+    addTriple({ weight: 600, italic: false, fsPx: TITLE_FS_PX, strutPx: strutIpx });
+    addTriple({ weight: 400, italic: true, fsPx: 14, strutPx: strutIpx });
+  }
+  addTriple({ weight: 400, italic: true, fsPx: 14, strutPx: BODY_STRUT_PX });
+
+  const plans: Array<{
+    langData: PdfCVData;
+    langCtx: RenderContext;
+    placed: ReturnType<typeof paginate>;
+    pageCount: number;
+  }> = [];
   for (const language of languagePlan) {
     // Per-language data: translations and the header name/title resolve on
-    // activeLang, so flow pagination must be recomputed for every language
+    // activeLang, so the flow plan must be recomputed for every language
     // (wrap counts and the profile-header height can differ per language).
     const langData: PdfCVData = {
       ...data,
@@ -1532,15 +1492,56 @@ export async function exportToPdf(
     };
     const langCtx: RenderContext = { ...ctx, activeLang: language.code };
 
-    // Determine page distribution: always the flow layout (pure flow +
-    // per-section page_break_before flags from layout_config).
-    const pageSections = flowLayout(
-      langCtx,
+    // ONE shared flow plan (src/lib/cv-flow-layout.ts): the same block
+    // heights and pagination rules the preview uses. This renderer only
+    // PAINTS the plan through px2pt() — it owns no layout arithmetic.
+    const blocks = computeFlowBlocks(
       enabledSectionsWithEntries,
-      profileHeaderHeightPt(langData, spacing.section)
+      design,
+      language.code,
+      {
+        profile: {
+          name: langData.profileName,
+          title: langData.profileTitle,
+          // includePhoto=false renders without the photo — paginate the
+          // header the renderer actually draws (no phantom photo height).
+          hasPhoto,
+        },
+        measure: setup.makeMeasure(language.code),
+      }
     );
+    // Heading anchors are per auto-shrunk size — collect them for the probe.
+    for (const b of blocks) {
+      if (b.kind === "heading") {
+        const headingFsPx = b.fontSizePx ?? 18;
+        addTriple({
+          weight: effectiveTemplate.headingStyle === "minimal" ? 600 : 700,
+          italic: false,
+          fsPx: headingFsPx,
+          strutPx: headingFsPx * 1.5,
+        });
+      }
+    }
+    const placed = paginate(blocks, contentBoxHeightPx(design));
+    const pageCount =
+      placed.length > 0
+        ? Math.max(...placed.map((p) => p.pageIndex)) + 1
+        : 1;
+    plans.push({ langData, langCtx, placed, pageCount });
+  }
 
-    for (let pageIdx = 0; pageIdx < pageSections.length; pageIdx++) {
+  // ── Phase 2: per-style baseline anchors ────────────────────────────────
+  // Harness-injected values win (they reproduce the in-browser placement
+  // under Node — see PdfExportOptions.baselineRatios); otherwise probe the
+  // real engine in the browser. Empty map (Node) → single fallback ratio.
+  const styleRatios: Map<string, number> = options.baselineRatios
+    ? new Map(Object.entries(options.baselineRatios))
+    : await probeStyleRatios(setup.fontStack, [...triples.values()]);
+  for (const plan of plans) plan.langCtx.styleRatios = styleRatios;
+
+  for (const { langData, langCtx, placed, pageCount } of plans) {
+
+    for (let pageIdx = 0; pageIdx < pageCount; pageIdx++) {
       // The doc's initial blank page serves the FIRST page of the FIRST
       // language; every later page — including each following language's
       // first page — starts with addPage().
@@ -1549,20 +1550,59 @@ export async function exportToPdf(
 
       drawPageBackground(langCtx);
 
-      let y = pageMargin;
-
-      if (pageIdx === 0) {
-        const pageData: PdfCVData = {
-          ...langData,
-          profilePicture:
-            options.includePhoto === false ? null : data.profilePicture,
-        };
-        y = await renderProfileHeader(langCtx, pageData);
+      for (const p of placed) {
+        if (p.pageIndex !== pageIdx) continue;
+        const b = p.block;
+        // Paint at the plan's content-relative top (px → pt, page origin at
+        // pageMargin). sectionTail is a pure gap — nothing to draw.
+        switch (b.kind) {
+          case "header":
+            if (pageIdx === 0) {
+              const pageData: PdfCVData = {
+                ...langData,
+                profilePicture:
+                  options.includePhoto === false ? null : data.profilePicture,
+              };
+              await renderProfileHeader(langCtx, pageData);
+            }
+            break;
+          case "heading":
+            renderHeading(
+              langCtx,
+              b.title ?? "",
+              pageMargin + px2pt(p.topPx),
+              px2pt(b.fontSizePx ?? 18)
+            );
+            break;
+          case "entry":
+            if (b.entry) {
+              renderEntry(langCtx, b.entry, pageMargin + px2pt(p.topPx));
+            }
+            break;
+          case "twocolChunk":
+            if (p.chunk) {
+              renderChunk(langCtx, p.chunk, pageMargin + px2pt(p.topPx));
+            }
+            break;
+          default:
+            break;
+        }
       }
+    }
 
-      for (const section of pageSections[pageIdx]) {
-        y = renderSection(langCtx, section, y);
-      }
+    // End-of-CV contact block: the bottom margin band of THIS language's
+    // LAST page — the doc's current page after the loop above. Merged
+    // all-languages exports therefore end EVERY language block with its
+    // own contact block (same values, per-language last page); single-
+    // language exports draw it once, on the document's last page.
+    // Outside the flow: no plan block, no flow height, no page breaks.
+    if (contactBlock.length > 0) {
+      renderContactBlock(
+        langCtx,
+        contactBlock,
+        pageMarginPx(design),
+        !hasPhoto
+      );
     }
   }
 

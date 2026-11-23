@@ -1,0 +1,788 @@
+{
+  "profileName": "Teszt Elek",
+  "profileTitle": "Mérnök",
+  "profilePicture": null,
+  "activeLang": "hu",
+  "design": {
+    "id": "fixture-design",
+    "cv_id": "fixture-cv",
+    "template": "clean",
+    "font_family": "inter",
+    "primary_color": "#0f172a",
+    "accent_color": "#3b82f6",
+    "spacing": "normal",
+    "border_radius": 8,
+    "page_margin": 48,
+    "custom_config": {
+      "paletteId": "slate"
+    },
+    "created_at": "2026-11-23T14:55:25.962Z",
+    "updated_at": "2026-11-23T14:55:25.962Z"
+  },
+  "sections": [
+    {
+      "id": "sec-101",
+      "cv_id": "fixture-cv",
+      "title": "Rövid szakasz",
+      "is_enabled": true,
+      "sort_order": 0,
+      "entry_sort_mode": "year_desc",
+      "layout_config": {},
+      "created_at": "2026-11-23T14:55:25.962Z",
+      "updated_at": "2026-11-23T14:55:25.962Z",
+      "entries": [
+        {
+          "id": "entry-97",
+          "section_id": "sec-101",
+          "year": 2024,
+          "is_enabled": true,
+          "sort_order": 0,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-98",
+              "entry_id": "entry-97",
+              "language": "hu",
+              "title": "Rövid pozíció 1",
+              "organization": "Rövid Kft. 1",
+              "description": "Rövid tevékenység leírása 1.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-99",
+          "section_id": "sec-101",
+          "year": 2023,
+          "is_enabled": true,
+          "sort_order": 1,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-100",
+              "entry_id": "entry-99",
+              "language": "hu",
+              "title": "Rövid pozíció 2",
+              "organization": "Rövid Kft. 2",
+              "description": "Rövid tevékenység leírása 2.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sec-162",
+      "cv_id": "fixture-cv",
+      "title": "Kétoszlopos szakasz",
+      "is_enabled": true,
+      "sort_order": 0,
+      "entry_sort_mode": "year_desc",
+      "layout_config": {
+        "columns": "two"
+      },
+      "created_at": "2026-11-23T14:55:25.962Z",
+      "updated_at": "2026-11-23T14:55:25.962Z",
+      "entries": [
+        {
+          "id": "entry-102",
+          "section_id": "sec-162",
+          "year": 2024,
+          "is_enabled": true,
+          "sort_order": 0,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-103",
+              "entry_id": "entry-102",
+              "language": "hu",
+              "title": "Oszlop pozíció 1",
+              "organization": "Oszlop Kft. 1",
+              "description": "Oszlop tevékenység leírása 1.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-104",
+          "section_id": "sec-162",
+          "year": 2023,
+          "is_enabled": true,
+          "sort_order": 1,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-105",
+              "entry_id": "entry-104",
+              "language": "hu",
+              "title": "Oszlop pozíció 2",
+              "organization": "Oszlop Kft. 2",
+              "description": "Oszlop tevékenység leírása 2.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-106",
+          "section_id": "sec-162",
+          "year": 2022,
+          "is_enabled": true,
+          "sort_order": 2,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-107",
+              "entry_id": "entry-106",
+              "language": "hu",
+              "title": "Oszlop pozíció 3",
+              "organization": "Oszlop Kft. 3",
+              "description": "Oszlop tevékenység leírása 3.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-108",
+          "section_id": "sec-162",
+          "year": 2021,
+          "is_enabled": true,
+          "sort_order": 3,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-109",
+              "entry_id": "entry-108",
+              "language": "hu",
+              "title": "Oszlop pozíció 4",
+              "organization": "Oszlop Kft. 4",
+              "description": "Oszlop tevékenység leírása 4.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-110",
+          "section_id": "sec-162",
+          "year": 2020,
+          "is_enabled": true,
+          "sort_order": 4,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-111",
+              "entry_id": "entry-110",
+              "language": "hu",
+              "title": "Oszlop pozíció 5",
+              "organization": "Oszlop Kft. 5",
+              "description": "Oszlop tevékenység leírása 5.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-112",
+          "section_id": "sec-162",
+          "year": 2019,
+          "is_enabled": true,
+          "sort_order": 5,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-113",
+              "entry_id": "entry-112",
+              "language": "hu",
+              "title": "Oszlop pozíció 6",
+              "organization": "Oszlop Kft. 6",
+              "description": "Oszlop tevékenység leírása 6.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-114",
+          "section_id": "sec-162",
+          "year": 2018,
+          "is_enabled": true,
+          "sort_order": 6,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-115",
+              "entry_id": "entry-114",
+              "language": "hu",
+              "title": "Oszlop pozíció 7",
+              "organization": "Oszlop Kft. 7",
+              "description": "Oszlop tevékenység leírása 7.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-116",
+          "section_id": "sec-162",
+          "year": 2017,
+          "is_enabled": true,
+          "sort_order": 7,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-117",
+              "entry_id": "entry-116",
+              "language": "hu",
+              "title": "Oszlop pozíció 8",
+              "organization": "Oszlop Kft. 8",
+              "description": "Oszlop tevékenység leírása 8.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-118",
+          "section_id": "sec-162",
+          "year": 2016,
+          "is_enabled": true,
+          "sort_order": 8,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-119",
+              "entry_id": "entry-118",
+              "language": "hu",
+              "title": "Oszlop pozíció 9",
+              "organization": "Oszlop Kft. 9",
+              "description": "Oszlop tevékenység leírása 9.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-120",
+          "section_id": "sec-162",
+          "year": 2015,
+          "is_enabled": true,
+          "sort_order": 9,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-121",
+              "entry_id": "entry-120",
+              "language": "hu",
+              "title": "Oszlop pozíció 10",
+              "organization": "Oszlop Kft. 10",
+              "description": "Oszlop tevékenység leírása 10.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-122",
+          "section_id": "sec-162",
+          "year": 2014,
+          "is_enabled": true,
+          "sort_order": 10,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-123",
+              "entry_id": "entry-122",
+              "language": "hu",
+              "title": "Oszlop pozíció 11",
+              "organization": "Oszlop Kft. 11",
+              "description": "Oszlop tevékenység leírása 11.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-124",
+          "section_id": "sec-162",
+          "year": 2013,
+          "is_enabled": true,
+          "sort_order": 11,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-125",
+              "entry_id": "entry-124",
+              "language": "hu",
+              "title": "Oszlop pozíció 12",
+              "organization": "Oszlop Kft. 12",
+              "description": "Oszlop tevékenység leírása 12.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-126",
+          "section_id": "sec-162",
+          "year": 2012,
+          "is_enabled": true,
+          "sort_order": 12,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-127",
+              "entry_id": "entry-126",
+              "language": "hu",
+              "title": "Oszlop pozíció 13",
+              "organization": "Oszlop Kft. 13",
+              "description": "Oszlop tevékenység leírása 13.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-128",
+          "section_id": "sec-162",
+          "year": 2011,
+          "is_enabled": true,
+          "sort_order": 13,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-129",
+              "entry_id": "entry-128",
+              "language": "hu",
+              "title": "Oszlop pozíció 14",
+              "organization": "Oszlop Kft. 14",
+              "description": "Oszlop tevékenység leírása 14.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-130",
+          "section_id": "sec-162",
+          "year": 2010,
+          "is_enabled": true,
+          "sort_order": 14,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-131",
+              "entry_id": "entry-130",
+              "language": "hu",
+              "title": "Oszlop pozíció 15",
+              "organization": "Oszlop Kft. 15",
+              "description": "Oszlop tevékenység leírása 15.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-132",
+          "section_id": "sec-162",
+          "year": 2009,
+          "is_enabled": true,
+          "sort_order": 15,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-133",
+              "entry_id": "entry-132",
+              "language": "hu",
+              "title": "Oszlop pozíció 16",
+              "organization": "Oszlop Kft. 16",
+              "description": "Oszlop tevékenység leírása 16.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-134",
+          "section_id": "sec-162",
+          "year": 2008,
+          "is_enabled": true,
+          "sort_order": 16,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-135",
+              "entry_id": "entry-134",
+              "language": "hu",
+              "title": "Oszlop pozíció 17",
+              "organization": "Oszlop Kft. 17",
+              "description": "Oszlop tevékenység leírása 17.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-136",
+          "section_id": "sec-162",
+          "year": 2007,
+          "is_enabled": true,
+          "sort_order": 17,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-137",
+              "entry_id": "entry-136",
+              "language": "hu",
+              "title": "Oszlop pozíció 18",
+              "organization": "Oszlop Kft. 18",
+              "description": "Oszlop tevékenység leírása 18.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-138",
+          "section_id": "sec-162",
+          "year": 2006,
+          "is_enabled": true,
+          "sort_order": 18,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-139",
+              "entry_id": "entry-138",
+              "language": "hu",
+              "title": "Oszlop pozíció 19",
+              "organization": "Oszlop Kft. 19",
+              "description": "Oszlop tevékenység leírása 19.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-140",
+          "section_id": "sec-162",
+          "year": 2005,
+          "is_enabled": true,
+          "sort_order": 19,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-141",
+              "entry_id": "entry-140",
+              "language": "hu",
+              "title": "Oszlop pozíció 20",
+              "organization": "Oszlop Kft. 20",
+              "description": "Oszlop tevékenység leírása 20.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-142",
+          "section_id": "sec-162",
+          "year": 2004,
+          "is_enabled": true,
+          "sort_order": 20,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-143",
+              "entry_id": "entry-142",
+              "language": "hu",
+              "title": "Oszlop pozíció 21",
+              "organization": "Oszlop Kft. 21",
+              "description": "Oszlop tevékenység leírása 21.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-144",
+          "section_id": "sec-162",
+          "year": 2003,
+          "is_enabled": true,
+          "sort_order": 21,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-145",
+              "entry_id": "entry-144",
+              "language": "hu",
+              "title": "Oszlop pozíció 22",
+              "organization": "Oszlop Kft. 22",
+              "description": "Oszlop tevékenység leírása 22.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-146",
+          "section_id": "sec-162",
+          "year": 2002,
+          "is_enabled": true,
+          "sort_order": 22,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-147",
+              "entry_id": "entry-146",
+              "language": "hu",
+              "title": "Oszlop pozíció 23",
+              "organization": "Oszlop Kft. 23",
+              "description": "Oszlop tevékenység leírása 23.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-148",
+          "section_id": "sec-162",
+          "year": 2001,
+          "is_enabled": true,
+          "sort_order": 23,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-149",
+              "entry_id": "entry-148",
+              "language": "hu",
+              "title": "Oszlop pozíció 24",
+              "organization": "Oszlop Kft. 24",
+              "description": "Oszlop tevékenység leírása 24.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-150",
+          "section_id": "sec-162",
+          "year": 2000,
+          "is_enabled": true,
+          "sort_order": 24,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-151",
+              "entry_id": "entry-150",
+              "language": "hu",
+              "title": "Oszlop pozíció 25",
+              "organization": "Oszlop Kft. 25",
+              "description": "Oszlop tevékenység leírása 25.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-152",
+          "section_id": "sec-162",
+          "year": 1999,
+          "is_enabled": true,
+          "sort_order": 25,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-153",
+              "entry_id": "entry-152",
+              "language": "hu",
+              "title": "Oszlop pozíció 26",
+              "organization": "Oszlop Kft. 26",
+              "description": "Oszlop tevékenység leírása 26.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-154",
+          "section_id": "sec-162",
+          "year": 1998,
+          "is_enabled": true,
+          "sort_order": 26,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-155",
+              "entry_id": "entry-154",
+              "language": "hu",
+              "title": "Oszlop pozíció 27",
+              "organization": "Oszlop Kft. 27",
+              "description": "Oszlop tevékenység leírása 27.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-156",
+          "section_id": "sec-162",
+          "year": 1997,
+          "is_enabled": true,
+          "sort_order": 27,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-157",
+              "entry_id": "entry-156",
+              "language": "hu",
+              "title": "Oszlop pozíció 28",
+              "organization": "Oszlop Kft. 28",
+              "description": "Oszlop tevékenység leírása 28.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-158",
+          "section_id": "sec-162",
+          "year": 1996,
+          "is_enabled": true,
+          "sort_order": 28,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-159",
+              "entry_id": "entry-158",
+              "language": "hu",
+              "title": "Oszlop pozíció 29",
+              "organization": "Oszlop Kft. 29",
+              "description": "Oszlop tevékenység leírása 29.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-160",
+          "section_id": "sec-162",
+          "year": 1995,
+          "is_enabled": true,
+          "sort_order": 29,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-161",
+              "entry_id": "entry-160",
+              "language": "hu",
+              "title": "Oszlop pozíció 30",
+              "organization": "Oszlop Kft. 30",
+              "description": "Oszlop tevékenység leírása 30.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -488,6 +488,27 @@ export function DemoEditor() {
     setDesignSaved(false);
   };
 
+  // ─── Contact details (end-of-CV phone/e-mail, bottom margin band) ─────────
+  // Same custom_config keys (contact_*) as the real editor — the preview and
+  // the PDF exporter render straight from them. Local-only state (the demo
+  // design is session state, like every other demo design change).
+  const contactCfg = (designForm.custom_config ?? {}) as Record<string, unknown>;
+  const contactPhone =
+    typeof contactCfg.contact_phone === "string" ? contactCfg.contact_phone : "";
+  const contactEmail =
+    typeof contactCfg.contact_email === "string" ? contactCfg.contact_email : "";
+  const contactShowPhone = contactCfg.contact_show_phone === true;
+  const contactShowEmail = contactCfg.contact_show_email === true;
+
+  const patchContactConfig = (patch: Record<string, unknown>) => {
+    setDesignForm((prev) => ({
+      ...prev,
+      custom_config: { ...(prev.custom_config ?? {}), ...patch },
+    }));
+    setDesignDirty(true);
+    setDesignSaved(false);
+  };
+
   const handleApplyTemplate = (templateId: string) => {
     const tpl = getTemplate(templateId);
     setDesignForm((prev) => {
@@ -830,6 +851,48 @@ export function DemoEditor() {
                       placeholder="Professional title"
                       className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:border-teal-500 focus:outline-none"
                     />
+                  </div>
+
+                  {/* Contact details — printed in the bottom margin band of
+                      the last page; each line only when its own checkbox is
+                      ticked (empty value = unticked). */}
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div>
+                      <input
+                        type="tel"
+                        value={contactPhone}
+                        onChange={(e) => patchContactConfig({ contact_phone: e.target.value })}
+                        placeholder="Phone"
+                        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:border-teal-500 focus:outline-none"
+                      />
+                      <label className="mt-1 flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={contactShowPhone}
+                          onChange={(e) => patchContactConfig({ contact_show_phone: e.target.checked })}
+                          className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                        />
+                        <span className="text-xs text-gray-600 italic">Print in PDF</span>
+                      </label>
+                    </div>
+                    <div>
+                      <input
+                        type="email"
+                        value={contactEmail}
+                        onChange={(e) => patchContactConfig({ contact_email: e.target.value })}
+                        placeholder="E-mail"
+                        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:border-teal-500 focus:outline-none"
+                      />
+                      <label className="mt-1 flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={contactShowEmail}
+                          onChange={(e) => patchContactConfig({ contact_show_email: e.target.checked })}
+                          className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                        />
+                        <span className="text-xs text-gray-600 italic">Print in PDF</span>
+                      </label>
+                    </div>
                   </div>
 
                   {/* Profile picture */}

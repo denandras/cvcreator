@@ -124,6 +124,19 @@ export interface ProfileTranslations {
   [lang: string]: { name: string; title: string };
 }
 
+/** End-of-CV contact block (phone / e-mail, each with its own print
+ *  checkbox) — the four custom_config keys the profile panel edits.
+ *  Persisted by saveProfileInfo with the same read-modify-write as
+ *  profile_name/profile_title so nothing else in custom_config is
+ *  clobbered. Empty string and unchecked are distinct in storage but
+ *  render identically (nothing) — the renderers drop empty values. */
+export interface ContactConfig {
+  phone: string;
+  email: string;
+  showPhone: boolean;
+  showEmail: boolean;
+}
+
 function readProfileConfig(cfg: Record<string, unknown>) {
   const t = (cfg.profile_translations ?? {}) as ProfileTranslations;
   const translations: ProfileTranslations = {};
@@ -170,7 +183,8 @@ export async function saveProfileInfo(
   cvId: string,
   profileName: string,
   profileTitle: string,
-  profileTranslations?: ProfileTranslations
+  profileTranslations?: ProfileTranslations,
+  contact?: ContactConfig
 ): Promise<void> {
   await requireAuth();
   const supabase = await createAuthClient();
@@ -191,6 +205,14 @@ export async function saveProfileInfo(
   };
   if (profileTranslations) {
     cfg.profile_translations = profileTranslations;
+  }
+  // Contact block keys — only touched when the caller passes them, so a
+  // name/title-only save never resets the contact details.
+  if (contact) {
+    cfg.contact_phone = contact.phone.trim();
+    cfg.contact_email = contact.email.trim();
+    cfg.contact_show_phone = contact.showPhone === true;
+    cfg.contact_show_email = contact.showEmail === true;
   }
 
   if (existing) {

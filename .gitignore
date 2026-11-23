@@ -29,3 +29,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+# local tooling state
+.hermes/
+scripts/__pycache__/
+__pycache__/

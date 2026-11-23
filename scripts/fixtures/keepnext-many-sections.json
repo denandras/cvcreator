@@ -1,0 +1,726 @@
+{
+  "profileName": "Teszt Elek",
+  "profileTitle": "Mérnök",
+  "profilePicture": null,
+  "activeLang": "hu",
+  "design": {
+    "id": "fixture-design",
+    "cv_id": "fixture-cv",
+    "template": "clean",
+    "font_family": "inter",
+    "primary_color": "#0f172a",
+    "accent_color": "#3b82f6",
+    "spacing": "normal",
+    "border_radius": 8,
+    "page_margin": 48,
+    "custom_config": {
+      "paletteId": "slate"
+    },
+    "created_at": "2026-11-23T14:55:25.962Z",
+    "updated_at": "2026-11-23T14:55:25.962Z"
+  },
+  "sections": [
+    {
+      "id": "sec-206",
+      "cv_id": "fixture-cv",
+      "title": "Szakasz egy",
+      "is_enabled": true,
+      "sort_order": 0,
+      "entry_sort_mode": "year_desc",
+      "layout_config": {},
+      "created_at": "2026-11-23T14:55:25.962Z",
+      "updated_at": "2026-11-23T14:55:25.962Z",
+      "entries": [
+        {
+          "id": "entry-194",
+          "section_id": "sec-206",
+          "year": 2024,
+          "is_enabled": true,
+          "sort_order": 0,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-195",
+              "entry_id": "entry-194",
+              "language": "hu",
+              "title": "Egy pozíció 1",
+              "organization": "Egy Kft. 1",
+              "description": "Egy tevékenység leírása 1.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-196",
+          "section_id": "sec-206",
+          "year": 2023,
+          "is_enabled": true,
+          "sort_order": 1,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-197",
+              "entry_id": "entry-196",
+              "language": "hu",
+              "title": "Egy pozíció 2",
+              "organization": "Egy Kft. 2",
+              "description": "Egy tevékenység leírása 2.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-198",
+          "section_id": "sec-206",
+          "year": 2022,
+          "is_enabled": true,
+          "sort_order": 2,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-199",
+              "entry_id": "entry-198",
+              "language": "hu",
+              "title": "Egy pozíció 3",
+              "organization": "Egy Kft. 3",
+              "description": "Egy tevékenység leírása 3.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-200",
+          "section_id": "sec-206",
+          "year": 2021,
+          "is_enabled": true,
+          "sort_order": 3,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-201",
+              "entry_id": "entry-200",
+              "language": "hu",
+              "title": "Egy pozíció 4",
+              "organization": "Egy Kft. 4",
+              "description": "Egy tevékenység leírása 4.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-202",
+          "section_id": "sec-206",
+          "year": 2020,
+          "is_enabled": true,
+          "sort_order": 4,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-203",
+              "entry_id": "entry-202",
+              "language": "hu",
+              "title": "Egy pozíció 5",
+              "organization": "Egy Kft. 5",
+              "description": "Egy tevékenység leírása 5.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-204",
+          "section_id": "sec-206",
+          "year": 2019,
+          "is_enabled": true,
+          "sort_order": 5,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-205",
+              "entry_id": "entry-204",
+              "language": "hu",
+              "title": "Egy pozíció 6",
+              "organization": "Egy Kft. 6",
+              "description": "Egy tevékenység leírása 6.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sec-213",
+      "cv_id": "fixture-cv",
+      "title": "Szakasz kettő",
+      "is_enabled": true,
+      "sort_order": 0,
+      "entry_sort_mode": "year_desc",
+      "layout_config": {},
+      "created_at": "2026-11-23T14:55:25.962Z",
+      "updated_at": "2026-11-23T14:55:25.962Z",
+      "entries": [
+        {
+          "id": "entry-207",
+          "section_id": "sec-213",
+          "year": 2024,
+          "is_enabled": true,
+          "sort_order": 0,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-208",
+              "entry_id": "entry-207",
+              "language": "hu",
+              "title": "Kettő pozíció 1",
+              "organization": "Kettő Kft. 1",
+              "description": "Kettő tevékenység leírása 1.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-209",
+          "section_id": "sec-213",
+          "year": 2023,
+          "is_enabled": true,
+          "sort_order": 1,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-210",
+              "entry_id": "entry-209",
+              "language": "hu",
+              "title": "Kettő pozíció 2",
+              "organization": "Kettő Kft. 2",
+              "description": "Kettő tevékenység leírása 2.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-211",
+          "section_id": "sec-213",
+          "year": 2021,
+          "is_enabled": true,
+          "sort_order": 2,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-212",
+              "entry_id": "entry-211",
+              "language": "hu",
+              "title": "Hosszú leírású pozíció",
+              "organization": "Hosszú Kft.",
+              "description": "Ez a leírás szándékosan hosszabb, hogy két sorba törjön a renderelés során a szöveg, és ezzel a bejegyzés magasabb legyen.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sec-224",
+      "cv_id": "fixture-cv",
+      "title": "Szakasz három",
+      "is_enabled": true,
+      "sort_order": 0,
+      "entry_sort_mode": "year_desc",
+      "layout_config": {},
+      "created_at": "2026-11-23T14:55:25.962Z",
+      "updated_at": "2026-11-23T14:55:25.962Z",
+      "entries": [
+        {
+          "id": "entry-214",
+          "section_id": "sec-224",
+          "year": 2024,
+          "is_enabled": true,
+          "sort_order": 0,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-215",
+              "entry_id": "entry-214",
+              "language": "hu",
+              "title": "Három pozíció 1",
+              "organization": "Három Kft. 1",
+              "description": "Három tevékenység leírása 1.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-216",
+          "section_id": "sec-224",
+          "year": 2023,
+          "is_enabled": true,
+          "sort_order": 1,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-217",
+              "entry_id": "entry-216",
+              "language": "hu",
+              "title": "Három pozíció 2",
+              "organization": "Három Kft. 2",
+              "description": "Három tevékenység leírása 2.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-218",
+          "section_id": "sec-224",
+          "year": 2022,
+          "is_enabled": true,
+          "sort_order": 2,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-219",
+              "entry_id": "entry-218",
+              "language": "hu",
+              "title": "Három pozíció 3",
+              "organization": "Három Kft. 3",
+              "description": "Három tevékenység leírása 3.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-220",
+          "section_id": "sec-224",
+          "year": 2021,
+          "is_enabled": true,
+          "sort_order": 3,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-221",
+              "entry_id": "entry-220",
+              "language": "hu",
+              "title": "Három pozíció 4",
+              "organization": "Három Kft. 4",
+              "description": "Három tevékenység leírása 4.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-222",
+          "section_id": "sec-224",
+          "year": 2020,
+          "is_enabled": true,
+          "sort_order": 4,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-223",
+              "entry_id": "entry-222",
+              "language": "hu",
+              "title": "Három pozíció 5",
+              "organization": "Három Kft. 5",
+              "description": "Három tevékenység leírása 5.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sec-229",
+      "cv_id": "fixture-cv",
+      "title": "Szakasz négy",
+      "is_enabled": true,
+      "sort_order": 0,
+      "entry_sort_mode": "year_desc",
+      "layout_config": {},
+      "created_at": "2026-11-23T14:55:25.962Z",
+      "updated_at": "2026-11-23T14:55:25.962Z",
+      "entries": [
+        {
+          "id": "entry-225",
+          "section_id": "sec-229",
+          "year": 2024,
+          "is_enabled": true,
+          "sort_order": 0,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-226",
+              "entry_id": "entry-225",
+              "language": "hu",
+              "title": "Négy pozíció 1",
+              "organization": "Négy Kft. 1",
+              "description": "Négy tevékenység leírása 1.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-227",
+          "section_id": "sec-229",
+          "year": 2023,
+          "is_enabled": true,
+          "sort_order": 1,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-228",
+              "entry_id": "entry-227",
+              "language": "hu",
+              "title": "Négy pozíció 2",
+              "organization": "Négy Kft. 2",
+              "description": "Négy tevékenység leírása 2.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sec-238",
+      "cv_id": "fixture-cv",
+      "title": "Szakasz öt",
+      "is_enabled": true,
+      "sort_order": 0,
+      "entry_sort_mode": "year_desc",
+      "layout_config": {},
+      "created_at": "2026-11-23T14:55:25.962Z",
+      "updated_at": "2026-11-23T14:55:25.962Z",
+      "entries": [
+        {
+          "id": "entry-230",
+          "section_id": "sec-238",
+          "year": 2024,
+          "is_enabled": true,
+          "sort_order": 0,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-231",
+              "entry_id": "entry-230",
+              "language": "hu",
+              "title": "Öt pozíció 1",
+              "organization": "Öt Kft. 1",
+              "description": "Öt tevékenység leírása 1.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-232",
+          "section_id": "sec-238",
+          "year": 2023,
+          "is_enabled": true,
+          "sort_order": 1,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-233",
+              "entry_id": "entry-232",
+              "language": "hu",
+              "title": "Öt pozíció 2",
+              "organization": "Öt Kft. 2",
+              "description": "Öt tevékenység leírása 2.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-234",
+          "section_id": "sec-238",
+          "year": 2022,
+          "is_enabled": true,
+          "sort_order": 2,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-235",
+              "entry_id": "entry-234",
+              "language": "hu",
+              "title": "Öt pozíció 3",
+              "organization": "Öt Kft. 3",
+              "description": "Öt tevékenység leírása 3.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-236",
+          "section_id": "sec-238",
+          "year": 2021,
+          "is_enabled": true,
+          "sort_order": 3,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-237",
+              "entry_id": "entry-236",
+              "language": "hu",
+              "title": "Öt pozíció 4",
+              "organization": "Öt Kft. 4",
+              "description": "Öt tevékenység leírása 4.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sec-245",
+      "cv_id": "fixture-cv",
+      "title": "Szakasz hat",
+      "is_enabled": true,
+      "sort_order": 0,
+      "entry_sort_mode": "year_desc",
+      "layout_config": {},
+      "created_at": "2026-11-23T14:55:25.962Z",
+      "updated_at": "2026-11-23T14:55:25.962Z",
+      "entries": [
+        {
+          "id": "entry-239",
+          "section_id": "sec-245",
+          "year": 2024,
+          "is_enabled": true,
+          "sort_order": 0,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-240",
+              "entry_id": "entry-239",
+              "language": "hu",
+              "title": "Hat pozíció 1",
+              "organization": "Hat Kft. 1",
+              "description": "Hat tevékenység leírása 1.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-241",
+          "section_id": "sec-245",
+          "year": 2023,
+          "is_enabled": true,
+          "sort_order": 1,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-242",
+              "entry_id": "entry-241",
+              "language": "hu",
+              "title": "Hat pozíció 2",
+              "organization": "Hat Kft. 2",
+              "description": "Hat tevékenység leírása 2.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-243",
+          "section_id": "sec-245",
+          "year": 2022,
+          "is_enabled": true,
+          "sort_order": 2,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-244",
+              "entry_id": "entry-243",
+              "language": "hu",
+              "title": "Hat pozíció 3",
+              "organization": "Hat Kft. 3",
+              "description": "Hat tevékenység leírása 3.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sec-250",
+      "cv_id": "fixture-cv",
+      "title": "Szakasz hét",
+      "is_enabled": true,
+      "sort_order": 0,
+      "entry_sort_mode": "year_desc",
+      "layout_config": {},
+      "created_at": "2026-11-23T14:55:25.962Z",
+      "updated_at": "2026-11-23T14:55:25.962Z",
+      "entries": [
+        {
+          "id": "entry-246",
+          "section_id": "sec-250",
+          "year": 2024,
+          "is_enabled": true,
+          "sort_order": 0,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-247",
+              "entry_id": "entry-246",
+              "language": "hu",
+              "title": "Hét pozíció 1",
+              "organization": "Hét Kft. 1",
+              "description": "Hét tevékenység leírása 1.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-248",
+          "section_id": "sec-250",
+          "year": 2023,
+          "is_enabled": true,
+          "sort_order": 1,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-249",
+              "entry_id": "entry-248",
+              "language": "hu",
+              "title": "Hét pozíció 2",
+              "organization": "Hét Kft. 2",
+              "description": "Hét tevékenység leírása 2.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sec-253",
+      "cv_id": "fixture-cv",
+      "title": "Szakasz nyolc",
+      "is_enabled": true,
+      "sort_order": 0,
+      "entry_sort_mode": "year_desc",
+      "layout_config": {},
+      "created_at": "2026-11-23T14:55:25.962Z",
+      "updated_at": "2026-11-23T14:55:25.962Z",
+      "entries": [
+        {
+          "id": "entry-251",
+          "section_id": "sec-253",
+          "year": 2024,
+          "is_enabled": true,
+          "sort_order": 0,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-252",
+              "entry_id": "entry-251",
+              "language": "hu",
+              "title": "Nyolc pozíció 1",
+              "organization": "Nyolc Kft. 1",
+              "description": "Nyolc tevékenység leírása 1.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -22,12 +22,16 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&family=Lora:wght@400;500;600;700&family=EB+Garamond:wght@400;500;600;700&family=Merriweather:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&family=Open+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=Crimson+Pro:wght@400;500;600;700&family=Raleway:wght@400;500;600;700&family=Karla:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
+        {/* CV fonts are SELF-HOSTED from /public/fonts/cv (fonts.css, generated
+            by scripts/build-fonts.py): the SAME merged TTF bytes the PDF
+            exporter embeds, with GPOS/GSUB stripped so the browser and jsPDF
+            reduce to identical cmap+hmtx advances. The old Google Fonts css2
+            link is gone on purpose — Google was observed serving two
+            *different builds* of the same family to the same machine on
+            different page loads (Inter digits 0.616em vs 0.572em), which made
+            the preview↔PDF row widths wobble by 2–4% and the parity gate
+            unrunnable (REPORT.md §4 Step 8). */}
+        <link rel="stylesheet" href="/fonts/cv/fonts.css" />
       </head>
       <body className="antialiased bg-stone-100 text-stone-900 h-screen h-[100dvh] overflow-hidden overscroll-none">
         <AuthProvider>{children}</AuthProvider>

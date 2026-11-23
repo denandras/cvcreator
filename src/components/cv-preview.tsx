@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { SectionWithEntries, CVDesign } from "@/types/database";
 import {
   getFontStack,
@@ -11,6 +11,19 @@ import {
   PAGE_WIDTH,
   PAGE_HEIGHT,
 } from "@/lib/design-constants";
+import {
+  computeFlowBlocks,
+  paginate,
+  groupPlacements,
+  contentBoxHeightPx,
+  isTwoColumnSection,
+  flowColGapPx,
+  sanitizeFlowText as sanitizeText,
+  contactLines,
+  CONTACT_LINE_PX,
+  type FlowMeasure,
+  type FlowBlock,
+} from "@/lib/cv-flow-layout";
 
 interface CVPreviewProps {
   sections: SectionWithEntries[];
@@ -96,14 +109,6 @@ export function CVPreview({
     entries: s.entries.filter((e) => e.is_enabled),
   }));
 
-  // Determine which sections are two-column
-  const isTwoColumn = (section: SectionWithEntries) => {
-    const layout = section.layout_config as Record<string, unknown>;
-    if (layout?.columns === "two") return true;
-    if (layout?.columns === "one") return false;
-    return template.twoColumnDefault;
-  };
-
   // Heading renderer — global override (custom_config.headingStyle, "auto" =
   // template default) takes precedence over the template's own style.
   const headingStyle =
@@ -112,27 +117,32 @@ export function CVPreview({
       : ((design.custom_config?.headingStyle as string) as
           | "underline" | "border" | "filled" | "minimal");
 
+  /** Heading auto-shrink: measure the uppercased title with the real
+   *  webfont (canvas) and shrink only when it would overflow the content
+   *  box minus the style's horizontal chrome. The shared flow module calls
+   *  this through its injected measure, so ONE shrink decision feeds both
+   *  the drawn heading and the paginated box. */
+  const fitHeadingPx = (title: string, basePx: number, padPx: number): number => {
+    if (!title || typeof document === "undefined") return basePx;
+    if (!fitCanvasRef.current) fitCanvasRef.current = document.createElement("canvas");
+    const c = fitCanvasRef.current.getContext("2d");
+    if (!c) return basePx;
+    c.font = `700 ${basePx}px ${fontStack}`;
+    const textW = c.measureText(title.toUpperCase()).width * 1.08; // tracking safety
+    const avail = PAGE_WIDTH - pageMargin * 2 - padPx * 2;
+    if (textW > avail && textW > 0) return Math.max(12, Math.floor((basePx * avail) / textW));
+    return basePx;
+  };
+
   const renderHeading = (title: string) => {
-    // Bigger section titles: base size grew from 0.875rem; auto-shrink only
-    // when the measured title would exceed the content width.
-    const fitPx = (basePx: number, padPx: number): number => {
-      if (!title || typeof document === "undefined") return basePx;
-      if (!fitCanvasRef.current) fitCanvasRef.current = document.createElement("canvas");
-      const c = fitCanvasRef.current.getContext("2d");
-      if (!c) return basePx;
-      c.font = `700 ${basePx}px ${fontStack}`;
-      const textW = c.measureText(title.toUpperCase()).width * 1.08; // tracking safety
-      const avail = PAGE_WIDTH - pageMargin * 2 - padPx * 2;
-      if (textW > avail && textW > 0) return Math.max(12, Math.floor((basePx * avail) / textW));
-      return basePx;
-    };
     switch (headingStyle) {
       case "underline":
         return (
           <h2
+            data-flow="heading"
             className="uppercase tracking-wide font-bold mb-3"
             style={{
-              fontSize: `${fitPx(18, 0)}px`,
+              fontSize: `${fitHeadingPx(title, 18, 0)}px`,
               color: primary,
               borderBottom: `2px solid ${accent}`,
               paddingBottom: "4px",
@@ -144,9 +154,10 @@ export function CVPreview({
       case "border":
         return (
           <h2
+            data-flow="heading"
             className="uppercase tracking-wider font-bold mb-3"
             style={{
-              fontSize: `${fitPx(18, 13)}px`,
+              fontSize: `${fitHeadingPx(title, 18, 13)}px`,
               color: primary,
               borderLeft: `3px solid ${accent}`,
               paddingLeft: "10px",
@@ -158,9 +169,10 @@ export function CVPreview({
       case "filled":
         return (
           <h2
+            data-flow="heading"
             className="uppercase tracking-wider font-bold mb-3 px-3 py-1.5"
             style={{
-              fontSize: `${fitPx(18, 12)}px`,
+              fontSize: `${fitHeadingPx(title, 18, 12)}px`,
               color: readableOn(accent),
               backgroundColor: accent,
               borderRadius: `${borderRadius}px`,
@@ -173,9 +185,10 @@ export function CVPreview({
       case "minimal":
         return (
           <h2
+            data-flow="heading"
             className="uppercase tracking-widest font-semibold mb-2"
             style={{
-              fontSize: `${fitPx(16, 0)}px`,
+              fontSize: `${fitHeadingPx(title, 16, 0)}px`,
               color: primary,
               letterSpacing: "0.15em",
             }}
@@ -184,24 +197,9 @@ export function CVPreview({
           </h2>
         );
       default:
-        return <h2 className="font-bold">{title}</h2>;
+        return <h2 data-flow="heading" className="font-bold">{title}</h2>;
     }
   };
-
-  /**
-   * Sanitize text for PDF-safe rendering:
-   * - Trim leading/trailing whitespace (removes accidental newlines at edges)
-   * - Collapse 3+ consecutive newlines into 2 (preserves intentional paragraph
-   *   breaks, removes accidental extra blank lines from textarea input)
-   * - Collapse runs of spaces/tabs into a single space (prevents wide gaps
-   *   from indentation or copy-paste)
-   * Does NOT remove intentional single newlines (user pressed Enter once).
-   */
-  const sanitizeText = (text: string): string =>
-    text
-      .replace(/[ \t]+/g, " ")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
 
   /** Relative luminance (WCAG) — picks readable white/black text on accents */
   const readableOn = (bg: string): string => {
@@ -241,6 +239,8 @@ export function CVPreview({
     return (
       <div
         key={entry.id}
+        data-flow="entry"
+        data-entry-id={entry.id}
         style={{ marginBottom: `${spacing.item}px`, lineHeight, breakInside: "avoid" }}
       >
         <div className="flex items-baseline justify-between gap-3">
@@ -276,7 +276,7 @@ export function CVPreview({
   };
 
   const renderSection = (section: SectionWithEntries) => {
-    const twoCol = isTwoColumn(section);
+    const twoCol = isTwoColumnSection(section, template);
     const isContinuation = (section as SectionWithEntries & { isContinuation?: boolean }).isContinuation === true;
     const meta = section as SectionWithEntries & {
       twocolChunks?: Array<{
@@ -293,6 +293,8 @@ export function CVPreview({
     return (
       <div
         key={section.id}
+        data-flow="section"
+        data-section={section.id}
         style={{
           marginBottom: isContinuation ? `${spacing.item}px` : `${spacing.section}px`,
           breakInside: "avoid",
@@ -310,7 +312,7 @@ export function CVPreview({
               return (
                 <div>
                   {chunks.map((chunk, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: `${spacing.item * 4}px` }}>
+                    <div key={i} data-flow="block" style={{ display: "flex", alignItems: "flex-start", gap: `${flowColGapPx(design)}px` }}>
                       <div style={{ flex: 1 }}>{chunk.left.map(renderEntry)}</div>
                       <div style={{ flex: 1 }}>{chunk.right.map(renderEntry)}</div>
                     </div>
@@ -322,7 +324,7 @@ export function CVPreview({
             const col1 = section.entries.slice(0, mid);
             const col2 = section.entries.slice(mid);
             return (
-              <div style={{ display: "flex", alignItems: "flex-start", gap: `${spacing.item * 4}px` }}>
+              <div data-flow="block" style={{ display: "flex", alignItems: "flex-start", gap: `${flowColGapPx(design)}px` }}>
                 <div style={{ flex: 1 }}>{col1.map(renderEntry)}</div>
                 <div style={{ flex: 1 }}>{col2.map(renderEntry)}</div>
               </div>
@@ -417,14 +419,15 @@ export function CVPreview({
               }}
             />
           )}
-          {!profilePicture && (
-            <div
-              style={{
-                marginTop: "12px",
-                borderBottom: `1px solid ${surfaceColor}`,
-              }}
-            />
-          )}
+          {/* No divider here (Step 8): this used to be a zero-width flex
+              child with a borderBottom — it never painted (the border sat on
+              a 0px box), but as a SECOND flex item it consumed one `gap-4`
+              (16px), shrinking the centered text block from 698px to 682px
+              and shifting the centered name/subtitle 8px left of the content
+              box's true center (REPORT.md §3 "secondary": preview-1-boxes
+              name/title w = 682). The PDF exporter centers on the content
+              box (card 3, Step 4 option (a): no divider), so the phantom
+              child had to go for Δx parity on the two header rows. */}
         </div>
         {profilePicture && (safeName || safeTitle) ? (
           // Divider: only when there's no name (a 1.75rem name already
@@ -446,46 +449,14 @@ export function CVPreview({
   // Pages come from auto-pagination (pure flow + user page-break-before flags).
   const useAutoPaginate = true;
 
-  interface FlowItem {
-    kind: "heading" | "entry" | "twocol" | "twocolChunk";
-    section: SectionWithEntries;
-    entry?: SectionWithEntries["entries"][0];
-    /** Independent-column page chunk: entries placed side by side, stacks not row-aligned */
-    chunk?: {
-      left: SectionWithEntries["entries"][0][];
-      right: SectionWithEntries["entries"][0][];
-    };
-  }
-
-  // Build the flow item list (same shape as the PDF exporter's flowLayout).
-  // Two-column sections emit ONE chunk flow item — columns are independent
-  // stacks that paginate with their own split points (no strict row grid).
-  const isTwoColumnRef = useRef(isTwoColumn);
-  isTwoColumnRef.current = isTwoColumn;
-  const flowItems: FlowItem[] = useMemo(() => {
-    const items: FlowItem[] = [];
-    for (const section of enabledSectionsWithEntries) {
-      items.push({ kind: "heading", section });
-      const twoCol = isTwoColumnRef.current(section);
-      if (twoCol && section.entries.length > 1) {
-        const mid = Math.ceil(section.entries.length / 2);
-        items.push({
-          kind: "twocol",
-          section,
-          chunk: {
-            left: section.entries.slice(0, mid),
-            right: section.entries.slice(mid),
-          },
-        });
-      } else {
-        for (const entry of section.entries) {
-          items.push({ kind: "entry", section, entry });
-        }
-      }
-    }
-    return items;
-  }, [enabledSectionsWithEntries]);
-
+  // ── Auto-pagination: ONE shared flow plan (src/lib/cv-flow-layout.ts) ─────
+  // The measure container renders the SAME tree the page renders, so the
+  // DOM IS this engine's text measurement: entry ink boxes are read off it
+  // and injected into the shared module, which owns every gap, the heading
+  // and header box constants, and the pagination rules — the exact same
+  // model the PDF exporter renders through px2pt(). A dev-only assertion
+  // proves the plan predicts the measured tree (≤ 0.5 px); silent drift
+  // became a loud dev failure.
   useEffect(() => {
     if (!useAutoPaginate || !measureRef.current) {
       setAutoPages([]);
@@ -496,205 +467,141 @@ export function CVPreview({
     const innerContent = measureEl.firstElementChild as HTMLElement;
     if (!innerContent) return;
 
-    // Mirror the PDF's bottom bound exactly: ink may reach pageH - one margin
-    // (exporter: pageHeightPt - pageMargin). Using two margins here would make
-    // the preview break pages before the PDF does.
-    const availableHeight = PAGE_HEIGHT - pageMargin;
+    // Collect the flow elements from the measure tree: the injected
+    // measure reads entry ink boxes from them, and the dev assertion reads
+    // every block's real top/box.
+    const kids = Array.from(innerContent.children) as HTMLElement[];
+    const profileEl =
+      kids.length > 0 && kids[0].dataset.flow === "profile" ? kids[0] : null;
+    const sectionEls = profileEl ? kids.slice(1) : kids;
 
-    const contentHeight = innerContent.scrollHeight;
-    if (contentHeight <= availableHeight) {
-      // Fits on one page
-      setAutoPages([enabledSectionsWithEntries]);
-      return;
-    }
-
-    // Measure each flow element from the rendered measurement DOM.
-    // The measurement DOM renders flat flow items in order:
-    // [profile header?] then for each section: heading wrapper, entry wrappers.
-    const els = Array.from(innerContent.children) as HTMLElement[];
-    let idx = 0;
-    let profileHeaderHeight = 0;
-    if (els.length > 0 && els[0].dataset.flow === "profile") {
-      profileHeaderHeight = els[0].offsetHeight + spacing.section;
-      idx = 1;
-    }
-
-    // Per-entry measurement lookup for twocol chunk splits: collect every
-    // data-flow="entry" child (tagged data-entry-id) from chunk measure
-    // wrappers in flow order. Heights mirror renderEntry's box + item gap.
-    const entryEls = new Map<string, HTMLElement>();
-    for (const el of els) {
-      if (el.dataset.flow !== "block") continue;
-      for (const child of Array.from(el.querySelectorAll('[data-flow="entry"][data-entry-id]')) as HTMLElement[]) {
-        const id = child.dataset.entryId;
-        if (id && !entryEls.has(id)) entryEls.set(id, child);
+    const headingEls = new Map<string, HTMLElement>(); // section.id → h2
+    const blockEls = new Map<string, HTMLElement>(); // section.id → twocol flex
+    const entryEls = new Map<string, HTMLElement>(); // entry.id → entry root
+    for (const secEl of sectionEls) {
+      const secId = secEl.dataset.section;
+      if (!secId) continue;
+      const h = secEl.querySelector<HTMLElement>(':scope > [data-flow="heading"]');
+      if (h) headingEls.set(secId, h);
+      const b = secEl.querySelector<HTMLElement>('[data-flow="block"]');
+      if (b) blockEls.set(secId, b);
+      for (const t of Array.from(
+        secEl.querySelectorAll<HTMLElement>('[data-flow="entry"][data-entry-id]')
+      )) {
+        const id = t.dataset.entryId;
+        if (!id) continue;
+        entryEls.set(id, t);
       }
     }
 
-    // Distribute flow items across pages (rules R1-R3)
-    const pages: SectionWithEntries[][] = [];
-    let pageItems: { item: FlowItem; height: number }[] = [];
-    let currentHeight = profileHeaderHeight;
+    // The measure tree must correspond to the CURRENT state before its
+    // geometry is usable. During SSR hydration the DOM can still hold the
+    // SERVER-rendered demo ids (demo-data's id counter differs per process)
+    // while the React state has the client's — element COUNTS match but ids
+    // do not, so boxes would read as zeros and the dev assertion would throw
+    // mid-hydration. Verify id COVERAGE and skip; the post-hydration
+    // re-render re-runs this effect against the real tree.
+    const hasHeader = Boolean(
+      sanitizeText(profileName) ||
+        sanitizeText(profileTitle) ||
+        profilePicture
+    );
+    const measureTreeReady =
+      hasHeader === (profileEl != null) &&
+      enabledSectionsWithEntries.every(
+        (s) =>
+          headingEls.has(s.id) && s.entries.every((e) => entryEls.has(e.id))
+      );
+    if (!measureTreeReady) return;
 
-    const flush = (extraItems?: { item: FlowItem; height: number }[]) => {
-      if (pageItems.length === 0 && !(extraItems && extraItems.length > 0)) return;
-      const pageSections: SectionWithEntries[] = [];
-      const seen = new Map<
-        string,
-        { group: SectionWithEntries; hasHeading: boolean }
-      >();
-      const allItems = extraItems ? [...pageItems, ...extraItems] : pageItems;
-      for (const { item: it } of allItems) {
-        const s = it.section;
-        let rec = seen.get(s.id);
-        if (!rec) {
-          const group: SectionWithEntries = { ...s, entries: [] };
-          rec = { group, hasHeading: false };
-          seen.set(s.id, rec);
-          pageSections.push(group);
-        }
-        if (it.kind === "heading") {
-          rec.hasHeading = true;
-        }
-        if (it.entry) {
-          rec.group.entries.push(it.entry);
-        } else if ((it.kind === "twocol" || it.kind === "twocolChunk") && it.chunk) {
-          // Two-column chunk: ship the exact per-column lists on the group —
-          // the renderer stacks each column independently, non row-aligned.
-          const g = rec.group as SectionWithEntries & {
-            twocolChunks?: Array<{
-              left: SectionWithEntries["entries"][0][];
-              right: SectionWithEntries["entries"][0][];
-            }>;
-          };
-          if (!g.twocolChunks) g.twocolChunks = [];
-          g.twocolChunks.push({ left: it.chunk.left, right: it.chunk.right });
-          rec.group.entries.push(...it.chunk.left, ...it.chunk.right);
-        }
-      }
-      // Mark continuation groups (no heading on this page)
-      for (const section of pageSections) {
-        const rec = seen.get(section.id)!;
-        if (!rec.hasHeading) {
-          (section as SectionWithEntries & { isContinuation?: boolean }).isContinuation =
-            true;
-        }
-      }
-      pages.push(pageSections);
-      pageItems = [];
+    // The DOM is this engine's text measurement (subpixel ink boxes).
+    const measure: FlowMeasure = {
+      entryBoxPx: (entry) => {
+        const el = entryEls.get(entry.id);
+        return el ? el.getBoundingClientRect().height : 0;
+      },
+      headingFontSizePx: (title, basePx, padPx) =>
+        fitHeadingPx(title, basePx, padPx),
     };
 
-    for (let i = 0; i < flowItems.length; i++) {
-      const item = flowItems[i];
-      const el = els[idx];
-      idx += 1;
-      // Heading items get spacing.section; every other flow item (entries,
-      // twocol chunks) gets the terminal spacing.item gap, mirroring the
-      // exporter's measured heights.
-      const rawHeight = el ? el.offsetHeight : 0;
-      const height = rawHeight + (item.kind === "heading" ? spacing.section : spacing.item);
-
-      // User-controlled break: section explicitly set to start on a fresh page.
-      if (
-        item.kind === "heading" &&
-        pageItems.length > 0 &&
-        (item.section.layout_config as Record<string, unknown> | null)?.page_break_before === true
-      ) {
-        flush();
-        currentHeight = 0;
+    const blocks = computeFlowBlocks(
+      enabledSectionsWithEntries,
+      design,
+      activeLang,
+      {
+        profile: {
+          name: profileName,
+          title: profileTitle,
+          hasPhoto: Boolean(profilePicture),
+        },
+        measure,
       }
+    );
+    const placed = paginate(blocks, contentBoxHeightPx(design));
+    const pages = groupPlacements(placed, enabledSectionsWithEntries);
 
-      // Pure flow: fills the current page; break only when the item doesn't fit.
-      // Mirror the PDF's trailing-gap waiver: the previous item's terminal
-      // spacing.item padding is invisible when it ends the page, so shrink it
-      // before retrying the fit (keeps knife-edge rows on the same page).
-      if (currentHeight + height > availableHeight && pageItems.length > 0) {
-        const prevPadding = item.kind === "heading" ? 0 : spacing.item;
-        let handled = false;
-        if (currentHeight - prevPadding + height <= availableHeight) {
-          currentHeight -= prevPadding;
-          const prevPlaced = pageItems[pageItems.length - 1];
-          if (prevPlaced) prevPlaced.height -= prevPadding;
-          handled = true;
-        } else if (
-          (item.kind === "twocol" || item.kind === "twocolChunk") &&
-          item.chunk
-        ) {
-          // Columns are independent stacks: fill per-column prefixes up to
-          // the free height and let the (different-length) remainders start
-          // the next page — same rule the PDF exporter applies. Free space
-          // uses the FULL currentHeight (the previous entry's trailing gap
-          // is real render space the chunk starts below — parity with the
-          // exporter's `free = bottomLimit - currentY`).
-          const free = availableHeight - currentHeight;
-          const measureChild = (e: SectionWithEntries["entries"][0]) => {
-            const el2 = entryEls.get(e.id);
-            return el2 ? el2.offsetHeight + spacing.item : 0;
-          };
-          let hL = 0;
-          let hR = 0;
-          const placedL: SectionWithEntries["entries"] = [];
-          const placedR: SectionWithEntries["entries"] = [];
-          const restL: SectionWithEntries["entries"] = [];
-          const restR: SectionWithEntries["entries"] = [];
-          for (const e of item.chunk.left) {
-            const h = measureChild(e);
-            if (hL + h <= free) {
-              placedL.push(e);
-              hL += h;
-            } else {
-              restL.push(e);
-            }
-          }
-          for (const e of item.chunk.right) {
-            const h = measureChild(e);
-            if (hR + h <= free) {
-              placedR.push(e);
-              hR += h;
-            } else {
-              restR.push(e);
-            }
-          }
-          if (placedL.length + placedR.length > 0 && restL.length + restR.length > 0) {
-            // Page N: existing items + fitted prefixes.
-            flush([
-              {
-                item: {
-                  kind: "twocolChunk",
-                  section: item.section,
-                  chunk: { left: placedL, right: placedR },
-                },
-                height: Math.max(hL, hR, 0),
-              },
-            ]);
-            // Next page: the independent remainders as a continuation chunk.
-            // Per-entry heights already measured — no re-measure pass needed.
-            // Continuation chunks render entries WITHOUT a trailing gap on
-            // the last item only when they end the page; the exporter's
-            // remainder height keeps every entry's trailing gap (matches
-            // measureEntry), so mirror that here.
-            item.kind = "twocolChunk";
-            item.chunk = { left: restL, right: restR };
-            const restSum = (list: SectionWithEntries["entries"]) =>
-              list.reduce((a, e) => a + measureChild(e), 0);
-            const restH = Math.max(restSum(restL), restSum(restR), 0);
-            currentHeight = restH + spacing.item;
-            pageItems.push({ item, height: restH + spacing.item });
-            handled = true;
+    // Dev-only DOM assertion (REPORT.md §4 Step 6): the shared model must
+    // predict the very tree it renders, cumulatively — ≤ 0.5 px per block
+    // top and box, and for the whole content height.
+    if (process.env.NODE_ENV !== "production") {
+      const originTop = innerContent.getBoundingClientRect().top;
+      const elFor = (b: FlowBlock): HTMLElement | null => {
+        if (b.kind === "header") return profileEl;
+        if (!b.sectionId) return null;
+        if (b.kind === "heading") return headingEls.get(b.sectionId) ?? null;
+        if (b.kind === "twocolChunk") return blockEls.get(b.sectionId) ?? null;
+        if (b.kind === "entry" && b.entry) {
+          return entryEls.get(b.entry.id) ?? null;
+        }
+        return null;
+      };
+      const mism: string[] = [];
+      let flowTop = 0;
+      let maxAbs = 0;
+      let domContent = 0;
+      for (const b of blocks) {
+        const el = elFor(b);
+        if (el) {
+          const r = el.getBoundingClientRect();
+          const dTop = r.top - originTop - flowTop;
+          const dBox = r.height - b.heightPx;
+          maxAbs = Math.max(maxAbs, Math.abs(dTop), Math.abs(dBox));
+          domContent = Math.max(domContent, r.bottom - originTop);
+          if (Math.abs(dTop) > 0.5 || Math.abs(dBox) > 0.5) {
+            mism.push(
+              `${b.key}: Δtop=${dTop.toFixed(3)}px Δbox=${dBox.toFixed(3)}px`
+            );
           }
         }
-        if (!handled) {
-          flush();
-          currentHeight = 0;
-        }
+        flowTop += b.heightPx + b.gapAfterPx;
       }
-      pageItems.push({ item, height });
-      currentHeight += height;
+      const dContent = flowTop - domContent;
+      if (mism.length > 0 || Math.abs(dContent) > 0.5) {
+        console.error("[cv-flow-layout] plan↔DOM mismatch", {
+          blocks: blocks.length,
+          planSum: flowTop,
+          domContentHeight: domContent,
+          maxAbs,
+          mism,
+        });
+        throw new Error(
+          `cv-flow-layout plan↔DOM mismatch (max |Δ| ${maxAbs.toFixed(3)}px): ` +
+            (mism[0] ?? `content height Δ${dContent.toFixed(3)}px`)
+        );
+      }
     }
-    flush();
 
     setAutoPages(pages.length > 0 ? pages : [enabledSectionsWithEntries]);
-  }, [useAutoPaginate, flowItems, pageMargin, spacing.section, spacing.item, lineHeight, fontStack, activeLang, enabledSectionsWithEntries, fontsLoadedTick]);
+  }, [
+    useAutoPaginate,
+    enabledSectionsWithEntries,
+    design,
+    activeLang,
+    profileName,
+    profileTitle,
+    profilePicture,
+    fontsLoadedTick,
+  ]);
 
   // Pages come from the auto-pagination flow measurement above.
   const pages = autoPages.length > 0 ? autoPages : [enabledSectionsWithEntries];
@@ -736,9 +643,18 @@ export function CVPreview({
   return (
     <>
       {/* Hidden measurement container for auto-pagination.
-          Renders FLAT flow items in order — each flow item is a direct child
-          element tagged with data-flow — so the pagination effect can measure
-          every heading/entry independently (not whole sections). */}
+          Renders the SAME flow the visible page renders — renderProfileHeader()
+          then renderSection() per enabled section, through the very renderers
+          the page uses — so CSS margin collapsing at section boundaries (the
+          section wrapper's marginBottom: spacing.section collapsing with the
+          last entry's marginBottom: spacing.item) is part of the measurement
+          by construction. The old flat re-derivation dropped that collapse
+          (12px per boundary for "normal" spacing) and under-measured the
+          content by 48px for the demo CV, hiding a whole page split. Flow
+          elements are tagged data-flow (+ data-entry-id / data-section) so
+          the shared cv-flow-layout module can read entry ink boxes off this
+          tree (its injected measure) and the dev assertion can check the
+          plan against every block's real top. */}
       {useAutoPaginate && (
         <div
           ref={measureRef}
@@ -765,40 +681,9 @@ export function CVPreview({
                 render header → every flow Y drifts, rows crammed/shifted on
                 pages 2+). The wrapper must add ZERO extra space. */}
             <div data-flow="profile">{renderProfileHeader()}</div>
-            {flowItems.map((it, i) =>
-              it.kind === "heading" ? (
-                <div key={"m-h-" + it.section.id} data-flow="heading">
-                  {renderHeading(sanitizeText(it.section.title))}
-                </div>
-              ) : it.chunk ? (
-                // Twocol chunk: one measure wrapper per entry (data-flow=entry,
-                // tagged data-entry-id) so the pagination effect can measure
-                // per-entry heights for the independent-column split — the
-                // wrapper layout mirrors the real two-column flex exactly.
-                <div key={"m-c-" + it.section.id + "-" + i} data-flow="block">
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: `${spacing.item * 4}px` }}>
-                    <div style={{ flex: 1 }}>
-                      {it.chunk.left.map((e) => (
-                        <div key={"mc-" + e.id} data-flow="entry" data-entry-id={e.id}>
-                          {renderEntry(e)}
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      {it.chunk.right.map((e) => (
-                        <div key={"mc-" + e.id} data-flow="entry" data-entry-id={e.id}>
-                          {renderEntry(e)}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div key={"m-e-" + it.entry!.id} data-flow="entry">
-                  {renderEntry(it.entry!)}
-                </div>
-              )
-            )}
+            {/* The same sections the page renders, via the same renderSection:
+                heading + entries per section, wrapper marginBottom intact. */}
+            {enabledSectionsWithEntries.map((section) => renderSection(section))}
           </div>
         </div>
       )}
@@ -847,6 +732,52 @@ export function CVPreview({
 
               {pageSections.map(renderSection)}
               </div>
+
+              {/* End-of-CV contact block (phone / e-mail): the BOTTOM
+                  MARGIN BAND below the content box — outside the flow by
+                  construction. Absolutely positioned inside the page div
+                  (same padding-box origin the contentBg inset div above
+                  uses), so it consumes no flow height, cannot shift a
+                  row, cannot trigger a page break, and is not part of
+                  the measurement tree the pagination walks. It sits
+                  OUTSIDE the content wrapper on purpose: the parity
+                  capture/gate walks the wrapper's text rows only, so
+                  this block never enters the gate's row pairing.
+                  contactLines() is [] with both checkboxes off (or both
+                  values empty) — then nothing renders at all. Geometry:
+                  12 px rows at single line-height (CONTACT_LINE_PX),
+                  vertically centred in the pageMargin-tall band,
+                  horizontally aligned like the profile header (centred
+                  when the header centres = no photo, left otherwise). */}
+              {pageIdx === pages.length - 1 &&
+                (() => {
+                  const contact = contactLines(design);
+                  if (contact.length === 0) return null;
+                  const bandTopPx = PAGE_HEIGHT - pageMargin;
+                  const blockHPx = contact.length * CONTACT_LINE_PX;
+                  const topPx =
+                    bandTopPx + Math.max(0, (pageMargin - blockHPx) / 2);
+                  return (
+                    <div
+                      data-flow="contact"
+                      style={{
+                        position: "absolute",
+                        left: `${pageMargin}px`,
+                        top: `${topPx}px`,
+                        width: `${PAGE_WIDTH - pageMargin * 2}px`,
+                        zIndex: 2,
+                        color: mutedColor,
+                        fontSize: `${CONTACT_LINE_PX}px`,
+                        lineHeight: 1,
+                        textAlign: profilePicture ? "left" : "center",
+                      }}
+                    >
+                      {contact.map((l) => (
+                        <div key={l.kind}>{l.text}</div>
+                      ))}
+                    </div>
+                  );
+                })()}
             </div>
           </div>
         ))}

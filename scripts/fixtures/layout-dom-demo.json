@@ -1,0 +1,320 @@
+{
+ "source": "live DOM of the /demo preview: hidden measure container (flow) + rendered page divs, unscaled CSS px",
+ "captured": "post-Step-6 tree (shared cv-flow-layout consumed by cv-preview), next dev :3001, fonts loaded, localStorage cleared, stable across 2 audits",
+ "contentHeightPx": 1113.031,
+ "innerScrollHeight": 1113,
+ "measureWidth": 698,
+ "renderedPages": 2,
+ "pageFirstHeadings": [
+  "Tapasztalat",
+  "Projektek"
+ ],
+ "rendered": [
+  {
+   "scale": 0.9093,
+   "blocks": [
+    {
+     "key": "demo-sec-16:heading",
+     "kind": "heading",
+     "top": 78.594,
+     "height": 27
+    },
+    {
+     "key": "demo-sec-16:demo-entry-1",
+     "kind": "entry",
+     "top": 117.594,
+     "height": 68.313
+    },
+    {
+     "key": "demo-sec-16:demo-entry-6",
+     "kind": "entry",
+     "top": 193.906,
+     "height": 68.313
+    },
+    {
+     "key": "demo-sec-16:demo-entry-11",
+     "kind": "entry",
+     "top": 270.219,
+     "height": 68.313
+    },
+    {
+     "key": "demo-sec-27:heading",
+     "kind": "heading",
+     "top": 358.531,
+     "height": 27
+    },
+    {
+     "key": "demo-sec-27:demo-entry-17",
+     "kind": "entry",
+     "top": 397.531,
+     "height": 68.312
+    },
+    {
+     "key": "demo-sec-27:demo-entry-22",
+     "kind": "entry",
+     "top": 473.844,
+     "height": 68.313
+    },
+    {
+     "key": "demo-sec-38:heading",
+     "kind": "heading",
+     "top": 562.156,
+     "height": 27
+    },
+    {
+     "key": "demo-sec-38:demo-entry-28",
+     "kind": "entry",
+     "top": 601.156,
+     "height": 48.312
+    },
+    {
+     "key": "demo-sec-38:demo-entry-33",
+     "kind": "entry",
+     "top": 657.469,
+     "height": 48.313
+    },
+    {
+     "key": "demo-sec-49:heading",
+     "kind": "heading",
+     "top": 725.781,
+     "height": 27
+    },
+    {
+     "key": "demo-sec-49:demo-entry-39",
+     "kind": "entry",
+     "top": 764.781,
+     "height": 68.313
+    },
+    {
+     "key": "demo-sec-49:demo-entry-44",
+     "kind": "entry",
+     "top": 841.094,
+     "height": 68.313
+    }
+   ]
+  },
+  {
+   "scale": 0.9093,
+   "blocks": [
+    {
+     "key": "demo-sec-60:heading",
+     "kind": "heading",
+     "top": 0,
+     "height": 27
+    },
+    {
+     "key": "demo-sec-60:demo-entry-50",
+     "kind": "entry",
+     "top": 39,
+     "height": 68.313
+    },
+    {
+     "key": "demo-sec-60:demo-entry-55",
+     "kind": "entry",
+     "top": 115.313,
+     "height": 68.313
+    }
+   ]
+  }
+ ],
+ "blocks": [
+  {
+   "key": "header",
+   "kind": "header",
+   "sectionId": null,
+   "label": "Kovács TamásÉpítész",
+   "dom": {
+    "top": 0,
+    "height": 58.594,
+    "bottom": 58.594
+   }
+  },
+  {
+   "key": "demo-sec-16:heading",
+   "kind": "heading",
+   "sectionId": "demo-sec-16",
+   "label": "Tapasztalat",
+   "dom": {
+    "top": 78.594,
+    "height": 27,
+    "bottom": 105.594
+   }
+  },
+  {
+   "key": "demo-sec-16:demo-entry-1",
+   "kind": "entry",
+   "sectionId": "demo-sec-16",
+   "entryId": "demo-entry-1",
+   "label": "Vezető építész2023KÖZÉPÍT Építészeti Stúdió Kft.Lakó- és köz",
+   "dom": {
+    "top": 117.594,
+    "height": 68.313,
+    "bottom": 185.906
+   }
+  },
+  {
+   "key": "demo-sec-16:demo-entry-6",
+   "kind": "entry",
+   "sectionId": "demo-sec-16",
+   "entryId": "demo-entry-6",
+   "label": "Építész2019BUDA-TERV Zrt.Középületek és irodaKomplexumok ter",
+   "dom": {
+    "top": 193.906,
+    "height": 68.313,
+    "bottom": 262.219
+   }
+  },
+  {
+   "key": "demo-sec-16:demo-entry-11",
+   "kind": "entry",
+   "sectionId": "demo-sec-16",
+   "entryId": "demo-entry-11",
+   "label": "Junior építész2016ARCH-I-DEA Kft.Családi házak és kisebb lak",
+   "dom": {
+    "top": 270.219,
+    "height": 68.313,
+    "bottom": 338.531
+   }
+  },
+  {
+   "key": "demo-sec-27:heading",
+   "kind": "heading",
+   "sectionId": "demo-sec-27",
+   "label": "Tanulmányok",
+   "dom": {
+    "top": 358.531,
+    "height": 27,
+    "bottom": 385.531
+   }
+  },
+  {
+   "key": "demo-sec-27:demo-entry-17",
+   "kind": "entry",
+   "sectionId": "demo-sec-27",
+   "entryId": "demo-entry-17",
+   "label": "MSc Építészmérnöki2016Budapesti Műszaki és Gazdaságtudományi",
+   "dom": {
+    "top": 397.531,
+    "height": 68.313,
+    "bottom": 465.844
+   }
+  },
+  {
+   "key": "demo-sec-27:demo-entry-22",
+   "kind": "entry",
+   "sectionId": "demo-sec-27",
+   "entryId": "demo-entry-22",
+   "label": "BSc Építészmérnöki2014Budapesti Műszaki és Gazdaságtudományi",
+   "dom": {
+    "top": 473.844,
+    "height": 68.313,
+    "bottom": 542.156
+   }
+  },
+  {
+   "key": "demo-sec-38:heading",
+   "kind": "heading",
+   "sectionId": "demo-sec-38",
+   "label": "Készségek",
+   "dom": {
+    "top": 562.156,
+    "height": 27,
+    "bottom": 589.156
+   }
+  },
+  {
+   "key": "demo-sec-38:demo-entry-28",
+   "kind": "entry",
+   "sectionId": "demo-sec-38",
+   "entryId": "demo-entry-28",
+   "label": "AutoCAD, Revit, ArchiCAD, SketchUpTervezőszoftverek haladó s",
+   "dom": {
+    "top": 601.156,
+    "height": 48.313,
+    "bottom": 649.469
+   }
+  },
+  {
+   "key": "demo-sec-38:demo-entry-33",
+   "kind": "entry",
+   "sectionId": "demo-sec-38",
+   "entryId": "demo-entry-33",
+   "label": "Projektmenedzsment, csapatvezetésAgile és waterfall módszert",
+   "dom": {
+    "top": 657.469,
+    "height": 48.313,
+    "bottom": 705.781
+   }
+  },
+  {
+   "key": "demo-sec-49:heading",
+   "kind": "heading",
+   "sectionId": "demo-sec-49",
+   "label": "Díjak",
+   "dom": {
+    "top": 725.781,
+    "height": 27,
+    "bottom": 752.781
+   }
+  },
+  {
+   "key": "demo-sec-49:demo-entry-39",
+   "kind": "entry",
+   "sectionId": "demo-sec-49",
+   "entryId": "demo-entry-39",
+   "label": "Év építésze — Magyar Építész Kamara2022Magyar Építész Kamara",
+   "dom": {
+    "top": 764.781,
+    "height": 68.313,
+    "bottom": 833.094
+   }
+  },
+  {
+   "key": "demo-sec-49:demo-entry-44",
+   "kind": "entry",
+   "sectionId": "demo-sec-49",
+   "entryId": "demo-entry-44",
+   "label": "Budapest Építészeti Díj2020Budapest Főváros ÖnkormányzataEli",
+   "dom": {
+    "top": 841.094,
+    "height": 68.313,
+    "bottom": 909.406
+   }
+  },
+  {
+   "key": "demo-sec-60:heading",
+   "kind": "heading",
+   "sectionId": "demo-sec-60",
+   "label": "Projektek",
+   "dom": {
+    "top": 929.406,
+    "height": 27,
+    "bottom": 956.406
+   }
+  },
+  {
+   "key": "demo-sec-60:demo-entry-50",
+   "kind": "entry",
+   "sectionId": "demo-sec-60",
+   "entryId": "demo-entry-50",
+   "label": "Szent György Közösségi Központ2023KÖZÉPÍT Stúdió2000 m²-es k",
+   "dom": {
+    "top": 968.406,
+    "height": 68.313,
+    "bottom": 1036.719
+   }
+  },
+  {
+   "key": "demo-sec-60:demo-entry-55",
+   "kind": "entry",
+   "sectionId": "demo-sec-60",
+   "entryId": "demo-entry-55",
+   "label": "Zöld Lakópark, Budaörs2021BUDA-TERV Zrt.120 lakásos lakópark",
+   "dom": {
+    "top": 1044.719,
+    "height": 68.313,
+    "bottom": 1113.031
+   }
+  }
+ ]
+}

@@ -1,0 +1,387 @@
+{
+  "profileName": "Teszt Elek",
+  "profileTitle": "Mérnök",
+  "profilePicture": null,
+  "activeLang": "hu",
+  "design": {
+    "id": "fixture-design",
+    "cv_id": "fixture-cv",
+    "template": "clean",
+    "font_family": "inter",
+    "primary_color": "#0f172a",
+    "accent_color": "#3b82f6",
+    "spacing": "normal",
+    "border_radius": 8,
+    "page_margin": 48,
+    "custom_config": {
+      "paletteId": "slate"
+    },
+    "created_at": "2026-11-23T14:55:25.962Z",
+    "updated_at": "2026-11-23T14:55:25.962Z"
+  },
+  "sections": [
+    {
+      "id": "sec-183",
+      "cv_id": "fixture-cv",
+      "title": "Első szakasz",
+      "is_enabled": true,
+      "sort_order": 0,
+      "entry_sort_mode": "year_desc",
+      "layout_config": {},
+      "created_at": "2026-11-23T14:55:25.962Z",
+      "updated_at": "2026-11-23T14:55:25.962Z",
+      "entries": [
+        {
+          "id": "entry-163",
+          "section_id": "sec-183",
+          "year": 2024,
+          "is_enabled": true,
+          "sort_order": 0,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-164",
+              "entry_id": "entry-163",
+              "language": "hu",
+              "title": "Első pozíció 1",
+              "organization": "Első Kft. 1",
+              "description": "Első tevékenység leírása 1.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-165",
+          "section_id": "sec-183",
+          "year": 2023,
+          "is_enabled": true,
+          "sort_order": 1,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-166",
+              "entry_id": "entry-165",
+              "language": "hu",
+              "title": "Első pozíció 2",
+              "organization": "Első Kft. 2",
+              "description": "Első tevékenység leírása 2.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-167",
+          "section_id": "sec-183",
+          "year": 2022,
+          "is_enabled": true,
+          "sort_order": 2,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-168",
+              "entry_id": "entry-167",
+              "language": "hu",
+              "title": "Első pozíció 3",
+              "organization": "Első Kft. 3",
+              "description": "Első tevékenység leírása 3.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-169",
+          "section_id": "sec-183",
+          "year": 2021,
+          "is_enabled": true,
+          "sort_order": 3,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-170",
+              "entry_id": "entry-169",
+              "language": "hu",
+              "title": "Első pozíció 4",
+              "organization": "Első Kft. 4",
+              "description": "Első tevékenység leírása 4.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-171",
+          "section_id": "sec-183",
+          "year": 2020,
+          "is_enabled": true,
+          "sort_order": 4,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-172",
+              "entry_id": "entry-171",
+              "language": "hu",
+              "title": "Első pozíció 5",
+              "organization": "Első Kft. 5",
+              "description": "Első tevékenység leírása 5.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-173",
+          "section_id": "sec-183",
+          "year": 2019,
+          "is_enabled": true,
+          "sort_order": 5,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-174",
+              "entry_id": "entry-173",
+              "language": "hu",
+              "title": "Első pozíció 6",
+              "organization": "Első Kft. 6",
+              "description": "Első tevékenység leírása 6.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-175",
+          "section_id": "sec-183",
+          "year": 2018,
+          "is_enabled": true,
+          "sort_order": 6,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-176",
+              "entry_id": "entry-175",
+              "language": "hu",
+              "title": "Első pozíció 7",
+              "organization": "Első Kft. 7",
+              "description": "Első tevékenység leírása 7.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-177",
+          "section_id": "sec-183",
+          "year": 2017,
+          "is_enabled": true,
+          "sort_order": 7,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-178",
+              "entry_id": "entry-177",
+              "language": "hu",
+              "title": "Első pozíció 8",
+              "organization": "Első Kft. 8",
+              "description": "Első tevékenység leírása 8.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-179",
+          "section_id": "sec-183",
+          "year": 2016,
+          "is_enabled": true,
+          "sort_order": 8,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-180",
+              "entry_id": "entry-179",
+              "language": "hu",
+              "title": "Első pozíció 9",
+              "organization": "Első Kft. 9",
+              "description": "Első tevékenység leírása 9.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-181",
+          "section_id": "sec-183",
+          "year": 2015,
+          "is_enabled": true,
+          "sort_order": 9,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-182",
+              "entry_id": "entry-181",
+              "language": "hu",
+              "title": "Első pozíció 10",
+              "organization": "Első Kft. 10",
+              "description": "Első tevékenység leírása 10.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sec-188",
+      "cv_id": "fixture-cv",
+      "title": "Törött szakasz",
+      "is_enabled": true,
+      "sort_order": 0,
+      "entry_sort_mode": "year_desc",
+      "layout_config": {
+        "page_break_before": true
+      },
+      "created_at": "2026-11-23T14:55:25.962Z",
+      "updated_at": "2026-11-23T14:55:25.962Z",
+      "entries": [
+        {
+          "id": "entry-184",
+          "section_id": "sec-188",
+          "year": 2024,
+          "is_enabled": true,
+          "sort_order": 0,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-185",
+              "entry_id": "entry-184",
+              "language": "hu",
+              "title": "Törött pozíció 1",
+              "organization": "Törött Kft. 1",
+              "description": "Törött tevékenység leírása 1.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-186",
+          "section_id": "sec-188",
+          "year": 2023,
+          "is_enabled": true,
+          "sort_order": 1,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-187",
+              "entry_id": "entry-186",
+              "language": "hu",
+              "title": "Törött pozíció 2",
+              "organization": "Törött Kft. 2",
+              "description": "Törött tevékenység leírása 2.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sec-193",
+      "cv_id": "fixture-cv",
+      "title": "Záró szakasz",
+      "is_enabled": true,
+      "sort_order": 0,
+      "entry_sort_mode": "year_desc",
+      "layout_config": {},
+      "created_at": "2026-11-23T14:55:25.962Z",
+      "updated_at": "2026-11-23T14:55:25.962Z",
+      "entries": [
+        {
+          "id": "entry-189",
+          "section_id": "sec-193",
+          "year": 2024,
+          "is_enabled": true,
+          "sort_order": 0,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-190",
+              "entry_id": "entry-189",
+              "language": "hu",
+              "title": "Záró pozíció 1",
+              "organization": "Záró Kft. 1",
+              "description": "Záró tevékenység leírása 1.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        },
+        {
+          "id": "entry-191",
+          "section_id": "sec-193",
+          "year": 2023,
+          "is_enabled": true,
+          "sort_order": 1,
+          "data": {},
+          "created_at": "2026-11-23T14:55:25.962Z",
+          "updated_at": "2026-11-23T14:55:25.962Z",
+          "translations": [
+            {
+              "id": "tr-192",
+              "entry_id": "entry-191",
+              "language": "hu",
+              "title": "Záró pozíció 2",
+              "organization": "Záró Kft. 2",
+              "description": "Záró tevékenység leírása 2.",
+              "data": {},
+              "created_at": "2026-11-23T14:55:25.962Z",
+              "updated_at": "2026-11-23T14:55:25.962Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

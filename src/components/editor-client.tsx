@@ -50,6 +50,7 @@ import {
   getUserCVs,
   getProfileInfo,
   saveProfileInfo,
+  type ContactConfig,
 } from "@/app/actions/design-actions";
 import { CVPreview } from "@/components/cv-preview";
 import { DesignSidebar } from "@/components/design-sidebar";
@@ -246,6 +247,54 @@ export function EditorClient() {
       await saveProfileInfo(cvId, profileName, profileTitle, profileTranslations);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save profile info");
+    }
+  };
+
+  // ─── Contact details (end-of-CV phone/e-mail, bottom margin band) ─────────
+  // The values live in design.custom_config (contact_* keys) — the exact keys
+  // the preview and the PDF exporter render from — so the local editing state
+  // IS designForm. Persistence goes through saveProfileInfo's read-modify-
+  // write (like name/title), never through a bare custom_config overwrite.
+  const contactCfg = (designForm.custom_config ?? {}) as Record<string, unknown>;
+  const contactPhone =
+    typeof contactCfg.contact_phone === "string" ? contactCfg.contact_phone : "";
+  const contactEmail =
+    typeof contactCfg.contact_email === "string" ? contactCfg.contact_email : "";
+  const contactShowPhone = contactCfg.contact_show_phone === true;
+  const contactShowEmail = contactCfg.contact_show_email === true;
+
+  /** Patch contact keys into designForm (preview + export see them). */
+  const patchContactConfig = (patch: Record<string, unknown>) => {
+    setDesignForm((prev) => ({
+      ...prev,
+      custom_config: { ...(prev.custom_config ?? {}), ...patch },
+    }));
+  };
+
+  /** Patch + persist the contact config. Text inputs call this on blur with
+   *  an empty patch (their value already landed in designForm via onChange);
+   *  checkboxes call it on change with their key. Reads the merged config
+   *  from the closure state + patch so the saved payload is exact. */
+  const persistContactConfig = async (patch: Record<string, unknown>) => {
+    patchContactConfig(patch);
+    if (!cvId) return;
+    const merged = { ...contactCfg, ...patch };
+    const contact: ContactConfig = {
+      phone: typeof merged.contact_phone === "string" ? merged.contact_phone : "",
+      email: typeof merged.contact_email === "string" ? merged.contact_email : "",
+      showPhone: merged.contact_show_phone === true,
+      showEmail: merged.contact_show_email === true,
+    };
+    try {
+      await saveProfileInfo(
+        cvId,
+        profileName,
+        profileTitle,
+        profileTranslations,
+        contact
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save contact details");
     }
   };
 
@@ -1080,6 +1129,50 @@ export function EditorClient() {
                           placeholder="Professional title"
                           className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:border-teal-500 focus:outline-none"
                         />
+                      </div>
+
+                      {/* Contact details — printed in the bottom margin band
+                          of the last page; each line only when its own
+                          checkbox is ticked (empty value = unticked). */}
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                          <input
+                            type="tel"
+                            value={contactPhone}
+                            onChange={(e) => patchContactConfig({ contact_phone: e.target.value })}
+                            onBlur={() => persistContactConfig({})}
+                            placeholder="Phone"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:border-teal-500 focus:outline-none"
+                          />
+                          <label className="mt-1 flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={contactShowPhone}
+                              onChange={(e) => persistContactConfig({ contact_show_phone: e.target.checked })}
+                              className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                            />
+                            <span className="text-xs text-gray-600 italic">Print in PDF</span>
+                          </label>
+                        </div>
+                        <div>
+                          <input
+                            type="email"
+                            value={contactEmail}
+                            onChange={(e) => patchContactConfig({ contact_email: e.target.value })}
+                            onBlur={() => persistContactConfig({})}
+                            placeholder="E-mail"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:border-teal-500 focus:outline-none"
+                          />
+                          <label className="mt-1 flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={contactShowEmail}
+                              onChange={(e) => persistContactConfig({ contact_show_email: e.target.checked })}
+                              className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                            />
+                            <span className="text-xs text-gray-600 italic">Print in PDF</span>
+                          </label>
+                        </div>
                       </div>
 
                       {/* Profile picture upload */}
