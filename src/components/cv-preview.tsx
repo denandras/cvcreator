@@ -522,6 +522,10 @@ export function CVPreview({
       },
       headingFontSizePx: (title, basePx, padPx) =>
         fitHeadingPx(title, basePx, padPx),
+      // The header's real ink box: the preview WRAPS a long name/title (the
+      // header div is normal flow), so its box is whatever the browser laid
+      // out — the exporter mirrors this with its own wrap-line strut count.
+      headerBoxPx: () => (profileEl ? profileEl.getBoundingClientRect().height : 0),
     };
 
     const blocks = computeFlowBlocks(

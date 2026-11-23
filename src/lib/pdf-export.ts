@@ -18,6 +18,10 @@ import {
   contentBoxHeightPx,
   pageMarginPx,
   HEADER_TITLE_STRUT_PX,
+  NAME_STRUT_PX,
+  NAME_MARGIN_PX,
+  PHOTO_PX,
+  headerTextStrutsBoxPx,
   CONTACT_LINE_PX,
   computeFlowBlocks,
   paginate,
@@ -956,6 +960,81 @@ function renderEntry(
   return top;
 }
 
+// ─── Profile header wrap (card t_a8f48654) ───────────────────────────────────
+
+/** The preview's flex gap-4 between the 96px photo and the text column. */
+const PHOTO_GAP_PX = 16;
+
+/** Wrap the profile header's name/title EXACTLY as the painter draws them.
+ *
+ * The preview's header divs are normal flow: a long name h1 or title div
+ * WRAPS at the column width (letter-spacing included, per CSS). The
+ * exporter used to draw each as ONE unbounded doc.text() run, so a long
+ * header's ink ran off the page — and every real reader (poppler, print)
+ * silently drops ink outside the MediaBox, which is how "PDF drops
+ * extended-Latin characters" actually manifests (jsPDF's serialization is
+ * complete: scripts/cv-glyph-repro.js proves it across jspdf 2.5.2→4.2.1).
+ *
+ * WHY NOT splitTextToSize: for embedded TTFs jsPDF's splitTextToSize drops
+ * the options.charSpace you hand it (its newOptions builds {widths,
+ * kerning} from metadata.Unicode and never carries charSpace through), yet
+ * the draw adds Tc to EVERY glyph — so a split at the raw width overflows
+ * by n × Tc per line. Measured on this tree: a line wrapped at 523.27 pt
+ * drew 605 pt wide (centred −4.6..600 pt on the 595.28 pt page) and poppler
+ * dropped its final glyph. The wrap below budgets the tracking the way the
+ * draw spends it — jsPDF's own width model INCLUDING charSpace
+ * (getStringUnitWidth → TTFFont.widthOfString adds Tc per glyph), the same
+ * model align:"center" centres with. That is also what the preview's CSS
+ * letter-spacing does to the browser's wrap.
+ *
+ * ONE owner of the line counts: BOTH the flow measurement
+ * (makeMeasure.headerBoxPx → headerTextStrutsBoxPx) and the painter call
+ * this, so the planned header box and the drawn ink can never disagree —
+ * for single-line headers the draw is character-for-character the old
+ * call (the loop runs once on the full string).
+ */
+function headerWrapLines(
+  doc: jsPDF,
+  name: string,
+  title: string,
+  wrapWidthPt: number,
+  setFontFor: (style: FontStyle, sizePt: number) => void
+): { nameLines: string[]; titleLines: string[] } {
+  // Greedy word wrap against the drawn width (glyph + charSpace per glyph,
+  // the centre math's own model). A word longer than the budget stays on
+  // its own overflowing line — the browser behaves the same for an
+  // unbreakable word.
+  const wrapTracked = (text: string, fsPt: number, charSpacePt: number): string[] => {
+    const maxUnits = wrapWidthPt / fsPt;
+    const width = (s: string) => doc.getStringUnitWidth(s, { charSpace: charSpacePt });
+    const words = text.split(/\s+/).filter(Boolean);
+    const lines: string[] = [];
+    let cur = "";
+    for (const word of words) {
+      const candidate = cur ? `${cur} ${word}` : word;
+      if (!cur || width(candidate) <= maxUnits) cur = candidate;
+      else {
+        lines.push(cur);
+        cur = word;
+      }
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  };
+
+  let nameLines: string[] = [];
+  let titleLines: string[] = [];
+  if (name) {
+    setFontFor("bold", px2pt(28)); // 1.75rem
+    nameLines = wrapTracked(name, px2pt(28), TRACKING_EM.name * px2pt(28));
+  }
+  if (title) {
+    setFontFor("medium", px2pt(14)); // 0.875rem, fontWeight 500
+    titleLines = wrapTracked(title.toUpperCase(), px2pt(14), TRACKING_EM.subtitle * px2pt(14));
+  }
+  return { nameLines, titleLines };
+}
+
 async function renderProfileHeader(
   ctx: RenderContext,
   data: PdfCVData
@@ -975,7 +1054,7 @@ async function renderProfileHeader(
       : pageMargin;
     const textX = isRight
       ? pageMargin
-      : pageMargin + photoSize + px2pt(16); // gap-4
+      : pageMargin + photoSize + px2pt(PHOTO_GAP_PX); // gap-4
 
     if (ctx.profileRim) {
       setStroke(ctx, accent);
@@ -986,25 +1065,46 @@ async function renderProfileHeader(
 
     await embedPhoto(doc, data.profilePicture, photoX, y, photoSize, photoSize);
 
-    if (name) {
+    // The preview's flex text column (flex: 1 beside the 96px photo + gap-4)
+    // WRAPS a long name/title at the column width; the exporter used to draw
+    // each as ONE unbounded run, whose ink ran off the page (card
+    // t_a8f48654). Same wrap, one doc.text() per line, per-line strut
+    // advance — a single-line header draws exactly the old call.
+    const textWrapW = contentWidth - photoSize - px2pt(PHOTO_GAP_PX);
+    const { nameLines, titleLines } = headerWrapLines(doc, name, title, textWrapW, (s, pt) =>
+      setFont(ctx, s, pt)
+    );
+
+    if (nameLines.length) {
       setFont(ctx, "bold", px2pt(28)); // 1.75rem
       setText(ctx, primary);
       // Top-aligned with the photo (mirrors the preview's items-start):
-      // name baseline sits one ascent (21pt × ~0.79) below the photo top —
-      // no vertical-centering offset, no extra line. The h1's CSS
-      // letter-spacing −0.02em applies here too (TRACKING_EM.name).
-      doc.text(name, textX, y + 16.5, { charSpace: TRACKING_EM.name * px2pt(28) });
+      // line 0's baseline sits one ascent (21pt × ~0.79) below the photo
+      // top — no vertical-centering offset, no extra line; every further
+      // line advances by the h1 strut (33.6 px). The h1's CSS letter-spacing
+      // −0.02em applies here too (TRACKING_EM.name).
+      const charSpace = TRACKING_EM.name * px2pt(28);
+      for (let i = 0; i < nameLines.length; i++) {
+        doc.text(nameLines[i], textX, y + 16.5 + i * px2pt(NAME_STRUT_PX), { charSpace });
+      }
     }
 
-    if (title) {
+    if (titleLines.length) {
       setFont(ctx, "medium", px2pt(14));
       setText(ctx, ctx.subtitle);
-      // Directly under the name with the 4px margin from the preview
-      // (name ascent 16.5 + 3pt margin + title ascent ≈ 27.5); when there
-      // is no name, the title takes the top slot at its own ascent (~10.5).
-      const titleY = name ? y + 27.5 : y + 10.5;
-      // The subtitle div: fontWeight 500 + letterSpacing 0.1em (preview CSS).
-      doc.text(title.toUpperCase(), textX, titleY, { charSpace: TRACKING_EM.subtitle * px2pt(14) });
+      // Directly under the LAST name line with the 4px margin from the
+      // preview (single-line name: ascent 16.5 + 3pt margin + title ascent ≈
+      // 27.5); with no name the title takes the top slot at its own ascent
+      // (~10.5). The subtitle div: fontWeight 500 + letterSpacing 0.1em
+      // (preview CSS); every further line advances by the div strut (21 px).
+      const lastNameBaseline = nameLines.length
+        ? y + 16.5 + (nameLines.length - 1) * px2pt(NAME_STRUT_PX)
+        : null;
+      const titleY = lastNameBaseline != null ? lastNameBaseline + 11 : y + 10.5;
+      const charSpace = TRACKING_EM.subtitle * px2pt(14);
+      for (let i = 0; i < titleLines.length; i++) {
+        doc.text(titleLines[i], textX, titleY + i * px2pt(HEADER_TITLE_STRUT_PX), { charSpace });
+      }
     }
 
     // The header's advance (photo box + ONE section gap) is the shared
@@ -1014,29 +1114,42 @@ async function renderProfileHeader(
   }
 
   // No-photo branch: strut box model (the shared plan's header block owns
-  // the advance — 33.6 + 4 + 21 px box + ONE section gap).
+  // the advance — 33.6 + 4 + 21 px box per line pair + ONE section gap).
   // Name h1: 28px, lh 1.2 → strut 33.6px, mb 4px, letterSpacing −0.02em;
   // title div: 14px fontWeight 500, letterSpacing 0.1em, strut 21px
   // (preflight). Baseline anchors mirror the DOM struts via each style's
-  // own probed engine metrics; TOP-aligned blocks via strut sums.
-  const hasName = Boolean(name);
-  if (name) {
+  // own probed engine metrics; TOP-aligned blocks via strut sums. A long
+  // name/title WRAPS at the content width (one centred doc.text() per
+  // line, per-line strut advance — card t_a8f48654); a single-line header
+  // draws exactly the old call.
+  const { nameLines, titleLines } = headerWrapLines(doc, name, title, contentWidth, (s, pt) =>
+    setFont(ctx, s, pt)
+  );
+  if (nameLines.length) {
     setFont(ctx, "bold", px2pt(28)); // 1.75rem
     setText(ctx, primary);
-    doc.text(name, pageMargin + contentWidth / 2, y + anchorPt(33.6, 28, styleRatio(ctx, { weight: 700, italic: false, fsPx: 28, strutPx: 33.6 })), {
-      align: "center",
-      charSpace: TRACKING_EM.name * px2pt(28),
-    });
+    const anchor = anchorPt(33.6, 28, styleRatio(ctx, { weight: 700, italic: false, fsPx: 28, strutPx: 33.6 }));
+    const charSpace = TRACKING_EM.name * px2pt(28);
+    for (let i = 0; i < nameLines.length; i++) {
+      doc.text(nameLines[i], pageMargin + contentWidth / 2, y + anchor + i * px2pt(NAME_STRUT_PX), {
+        align: "center",
+        charSpace,
+      });
+    }
   }
-  if (title) {
+  if (titleLines.length) {
     setFont(ctx, "medium", px2pt(14));
     setText(ctx, ctx.subtitle);
-    // Title block top = name strut + mb-4px (0 with no name).
-    const titleTop = y + px2pt(hasName ? 33.6 + 4 : 0);
-    doc.text(title.toUpperCase(), pageMargin + contentWidth / 2, titleTop + anchorPt(HEADER_TITLE_STRUT_PX, 14, styleRatio(ctx, { weight: 500, italic: false, fsPx: 14, strutPx: HEADER_TITLE_STRUT_PX })), {
-      align: "center",
-      charSpace: TRACKING_EM.subtitle * px2pt(14),
-    });
+    // Title block top = ALL the name struts + mb-4px (0 with no name).
+    const titleTop = y + px2pt(nameLines.length * NAME_STRUT_PX + (nameLines.length ? NAME_MARGIN_PX : 0));
+    const anchor = anchorPt(HEADER_TITLE_STRUT_PX, 14, styleRatio(ctx, { weight: 500, italic: false, fsPx: 14, strutPx: HEADER_TITLE_STRUT_PX }));
+    const charSpace = TRACKING_EM.subtitle * px2pt(14);
+    for (let i = 0; i < titleLines.length; i++) {
+      doc.text(titleLines[i], pageMargin + contentWidth / 2, titleTop + anchor + i * px2pt(HEADER_TITLE_STRUT_PX), {
+        align: "center",
+        charSpace,
+      });
+    }
   }
   // No divider, no second section gap: the preview's no-photo header is the
   // text block + ONE marginBottom: spacing.section — its intended divider is
@@ -1266,6 +1379,20 @@ export async function setupPdfMeasure(
           return Math.max(8, (basePt * avail) / (sizeRatio * basePt)) / 0.75;
         }
         return basePx;
+      },
+      // Header ink box from the exporter's OWN wrap (card t_a8f48654): the
+      // line counts headerWrapLines will actually draw, charged at the same
+      // per-line struts (headerTextStrutsBoxPx) — so the plan and the ink
+      // agree for wrapped headers exactly as they did for single-line ones.
+      headerBoxPx(profile, contentWidthPx) {
+        const hName = sanitizeText(profile.name);
+        const hTitle = sanitizeText(profile.title);
+        if (!hName && !hTitle && !profile.hasPhoto) return 0;
+        // With a photo the text column is flex: 1 beside the 96px box and
+        // the gap — the same width renderProfileHeader wraps at.
+        const wrapW = profile.hasPhoto ? contentWidthPx - PHOTO_PX - PHOTO_GAP_PX : contentWidthPx;
+        const { nameLines, titleLines } = headerWrapLines(doc, hName, hTitle, px2pt(wrapW), setMFont);
+        return headerTextStrutsBoxPx(nameLines.length, titleLines.length, profile.hasPhoto);
       },
     };
   };

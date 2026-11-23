@@ -207,6 +207,13 @@ export interface FlowMeasure {
    *  title fits). Engines measure text width their own way; the module owns
    *  the box/margin constants that turn the size into a height. */
   headingFontSizePx(title: string, basePx: number, padPx: number): number;
+  /** Ink-box height of the profile header, CSS px, WITHOUT its trailing
+   *  section gap. A long name/title WRAPS in the preview (the header div is
+   *  normal flow) so its box grows past the single-line struts — each engine
+   *  measures the wrap its own way: the preview reads the real DOM box, the
+   *  exporter counts its own splitTextToSize lines (headerTextStrutsBoxPx
+   *  owns the per-line strut arithmetic both must agree with). */
+  headerBoxPx(profile: FlowProfile, contentWidthPx: number): number;
 }
 
 export interface FlowProfile {
@@ -223,20 +230,29 @@ export interface FlowProfile {
  *  no-photo header baseline anchor. */
 export const HEADER_TITLE_STRUT_PX = 21;
 /** Name h1: 28px at lh 1.2. */
-const NAME_STRUT_PX = 33.6;
+export const NAME_STRUT_PX = 33.6;
 /** Name h1's marginBottom. */
-const NAME_MARGIN_PX = 4;
+export const NAME_MARGIN_PX = 4;
 /** Photo box (border-box: the 2px rim is inside the 96px). */
-const PHOTO_PX = 96;
+export const PHOTO_PX = 96;
 
-function profileHeaderBoxPx(profile: FlowProfile): number {
-  const hasName = Boolean(sanitizeFlowText(profile.name));
-  const hasTitle = Boolean(sanitizeFlowText(profile.title));
-  if (!hasName && !hasTitle && !profile.hasPhoto) return 0;
-  if (profile.hasPhoto) return PHOTO_PX;
-  if (hasName && hasTitle) return NAME_STRUT_PX + NAME_MARGIN_PX + HEADER_TITLE_STRUT_PX;
-  if (hasName) return NAME_STRUT_PX;
-  return HEADER_TITLE_STRUT_PX;
+/** Header ink box from WRAPPED line counts (CSS px). ONE owner of the
+ *  arithmetic: the exporter's FlowMeasure.headerBoxPx feeds it the
+ *  splitTextToSize line counts it will actually draw, and the painter draws
+ *  each line at exactly these strut advances — so pagination and ink agree
+ *  for multi-line headers as they always did for single-line ones. */
+export function headerTextStrutsBoxPx(
+  nameLines: number,
+  titleLines: number,
+  hasPhoto: boolean
+): number {
+  const nameBox = nameLines > 0 ? nameLines * NAME_STRUT_PX : 0;
+  const margin = nameLines > 0 && titleLines > 0 ? NAME_MARGIN_PX : 0;
+  const titleBox = titleLines > 0 ? titleLines * HEADER_TITLE_STRUT_PX : 0;
+  const textBox = nameBox + margin + titleBox;
+  // With a photo the flex row's height is the tallest child: the 96px photo
+  // or the (possibly wrapped, taller) text column.
+  return hasPhoto ? Math.max(PHOTO_PX, textBox) : textBox;
 }
 
 // ─── Headings (h2 strut = fontSize × 1.5, preflight — preset-independent) ───
@@ -316,7 +332,10 @@ export function computeFlowBlocks(
   const blocks: FlowBlock[] = [];
 
   // ── Profile header ──────────────────────────────────────────────────────
-  const headerBox = profileHeaderBoxPx(profile);
+  // Measured per engine (FlowMeasure.headerBoxPx): single-line struts were
+  // the old fixed model; a wrapped name/title must charge its real line
+  // count or pagination would run away from the drawn ink.
+  const headerBox = measure.headerBoxPx(profile, contentW);
   if (headerBox > 0) {
     blocks.push({
       kind: "header",
