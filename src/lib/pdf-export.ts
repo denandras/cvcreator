@@ -273,6 +273,33 @@ function sanitizeText(text: string): string {
     .trim();
 }
 
+/**
+ * Build a download filename base from the profile name.
+ * Accented letters are TRANSLITERATED, not replaced with "_": "Dénes András"
+ * must become "Denes_Andras", never "D_nes_Andr_s".
+ */
+function filenameBaseFromName(raw: string | undefined): string {
+  const name = (raw ?? "").trim();
+  if (!name) return "CV";
+  const ascii = name
+    // Letters NFD cannot decompose (ø, đ, ł, ß, œ, æ…) handled explicitly.
+    .replace(/[ßẞ]/g, "ss")
+    .replace(/[œŒ]/g, "oe")
+    .replace(/[æÆ]/g, "ae")
+    .replace(/[øØ]/g, "o")
+    .replace(/[đĐðÐ]/g, "d")
+    .replace(/[łŁ]/g, "l")
+    .replace(/[þÞ]/g, "th")
+    // é→e, á→a, ő→o, ű→u, ç→c, ñ→n…
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const base = ascii
+    .replace(/[^A-Za-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80);
+  return base || "CV";
+}
+
 /** Convert px (96-DPI screen) to pt (1/72 inch): 1px = 0.75pt at 96 DPI */
 function px2pt(px: number): number {
   return px * 0.75;
@@ -1367,10 +1394,7 @@ export async function exportToPdf(
     );
   }
 
-  const filenameBase = (options.profileName || data.profileName || "CV").replace(
-    /[^a-zA-Z0-9_-]/g,
-    "_"
-  );
+  const filenameBase = filenameBaseFromName(options.profileName || data.profileName);
   // Merged multi-language exports carry the language codes in the filename
   // (…_hu-en.pdf) so the file identifies what is inside it.
   const filename =
