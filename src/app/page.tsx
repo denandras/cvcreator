@@ -68,6 +68,22 @@ export default function Home() {
             </div>
           ))}
         </div>
+
+        {/* Legal */}
+        <div className="pt-10 flex flex-col sm:flex-row items-center justify-center gap-x-5 gap-y-2 text-xs text-stone-400">
+          <Link
+            href="/adatkezelesi-tajekoztato"
+            className="hover:text-stone-700 transition-colors underline underline-offset-2"
+          >
+            Adatkezelési tájékoztató
+          </Link>
+          <Link
+            href="/adatkezelesi-tajekoztato?lang=en"
+            className="hover:text-stone-700 transition-colors underline underline-offset-2"
+          >
+            Privacy notice
+          </Link>
+        </div>
       </div>
     </main>
   );
