@@ -108,6 +108,38 @@ export function AuthForm({ initialMode = "signin" }: { initialMode?: "signin" | 
             Try Demo Mode
           </Link>
         </div>
+
+        <p className="text-center text-xs text-gray-400 leading-relaxed">
+          {mode === "signup" ? (
+            <>
+              By creating an account you acknowledge the{" "}
+              <Link
+                href="/adatkezelesi-tajekoztato?lang=en"
+                className="text-teal-700 hover:underline underline-offset-2"
+              >
+                Privacy Notice
+              </Link>
+              .{" "}
+              <Link
+                href="/adatkezelesi-tajekoztato"
+                className="text-gray-500 hover:underline underline-offset-2"
+              >
+                Adatkezelési tájékoztató
+              </Link>
+            </>
+          ) : (
+            <>
+              We process your data as described in the{" "}
+              <Link
+                href="/adatkezelesi-tajekoztato?lang=en"
+                className="text-teal-700 hover:underline underline-offset-2"
+              >
+                Privacy Notice
+              </Link>
+              .
+            </>
+          )}
+        </p>
       </div>
     </div>
   );
